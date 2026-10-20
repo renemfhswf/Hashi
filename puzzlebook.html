@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hashi – Rätselheft (DIN A6)</title>
+    <meta
+      name="description"
+      content="Hashi-Rätselheft: bis zu 4 Hashiwokakero-Rätsel pro Seite im DIN-A6-Format erzeugen und drucken."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/styles.css" />
+    <link rel="stylesheet" href="css/booklet.css" />
+  </head>
+  <body class="booklet-body">
+    <div class="app booklet">
+      <header class="topbar">
+        <a class="brand" href="index.html">
+          <svg class="brand__mark" viewBox="0 0 40 40" aria-hidden="true">
+            <rect x="0" y="0" width="40" height="40" rx="10" class="brand__bg" />
+            <circle cx="11" cy="20" r="5.5" class="brand__island" />
+            <circle cx="29" cy="20" r="5.5" class="brand__island" />
+            <rect x="9" y="18.2" width="22" height="1.8" rx="0.9" class="brand__bridge" />
+            <rect x="9" y="21" width="22" height="1.8" rx="0.9" class="brand__bridge" />
+          </svg>
+          <div class="brand__text">
+            <span class="brand__name">Hashi</span>
+            <span class="brand__tag">Rätselheft</span>
+          </div>
+        </a>
+
+        <div class="topbar__stats">
+          <a class="btn btn--small" href="index.html">← Zurück zum Spiel</a>
+        </div>
+      </header>
+
+      <main class="booklet__main">
+        <section class="panel booklet__controls">
+          <div class="field">
+            <span class="field__label">Schwierigkeitsgrade</span>
+            <div class="segmented segmented--4" id="difficulty" role="group" aria-label="Schwierigkeitsgrade"></div>
+            <p class="field__note">
+              Mehrere Grade auswählen – die Rätsel werden dann abwechselnd
+              gemischt. Ohne Auswahl gilt „Mittel".
+            </p>
+          </div>
+
+          <div class="field">
+            <span class="field__label">Rätsel pro Seite</span>
+            <div class="segmented segmented--3" id="perPage" role="group" aria-label="Rätsel pro Seite">
+              <button type="button" data-per="1">1</button>
+              <button type="button" data-per="2">2</button>
+            </div>
+            <p class="field__note">
+              Höchstens zwei Rätsel pro A6-Seite. Bei grossen Rastern wird
+              automatisch nur ein Rätsel pro Seite gesetzt.
+            </p>
+          </div>
+
+          <div class="field">
+            <span class="field__label">Anzahl Rätsel</span>
+            <div class="segmented segmented--4" id="count" role="group" aria-label="Anzahl Rätsel">
+              <button type="button" data-count="8">8</button>
+              <button type="button" data-count="20">20</button>
+              <button type="button" data-count="50">50</button>
+              <button type="button" data-count="100">100</button>
+            </div>
+            <div class="count-row">
+              <input class="input" id="countInput" type="number" min="1" max="100" step="1" value="8" aria-label="Anzahl Rätsel" />
+              <span class="field__note">1 – 100 Rätsel</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="field__label">Seed</span>
+            <div class="seed-row">
+              <input class="input" id="seedInput" type="text" spellcheck="false" autocomplete="off" aria-label="Seed" />
+              <button class="btn btn--small" id="copyBtn" type="button" title="Link kopieren">Link</button>
+            </div>
+          </div>
+
+          <label class="checkbox">
+            <input type="checkbox" id="withSolutions" />
+            <span>Lösungen als letzte Seiten anhängen</span>
+          </label>
+
+          <div class="actions">
+            <button class="btn btn--primary" id="generateBtn" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+              Heft erzeugen
+            </button>
+            <button class="btn" id="printBtn" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V4h10v5" /><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v6H7z" /></svg>
+              Drucken
+            </button>
+          </div>
+
+          <p class="field__note" id="bookletInfo"></p>
+        </section>
+
+        <section class="booklet__preview">
+          <div id="sheets" class="sheets"></div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Seitenformat DIN A6 (105 × 148 mm) · im Druckdialog ggf. auf 100 % skalieren.</span>
+        <span class="footer__keys"><kbd>N</kbd> neu · <kbd>Strg</kbd>+<kbd>P</kbd> drucken</span>
+      </footer>
+    </div>
+
+    <script type="module" src="js/booklet.js"></script>
+  </body>
+</html>

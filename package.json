@@ -1,0 +1,24 @@
+{
+  "name": "hashi",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hashi (Hashiwokakero) – minimalistischer Rätselgenerator, Solver und Spieler. Reines JavaScript, statisch hostbar auf GitHub Pages.",
+  "scripts": {
+    "test": "node --test",
+    "test:watch": "node --test --watch",
+    "serve": "npx --yes serve ."
+  },
+  "keywords": [
+    "hashiwokakero",
+    "hashi",
+    "puzzle",
+    "raetsel",
+    "javascript",
+    "github-pages"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

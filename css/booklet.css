@@ -1,0 +1,238 @@
+/* ==========================================================================
+   Rätselheft – Layout der Druckbögen (DIN A6) und der Vorschau
+   ========================================================================== */
+
+.booklet-body {
+  background: var(--bg);
+}
+
+.booklet__main {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  flex: 1;
+}
+
+.booklet__controls {
+  position: sticky;
+  top: 18px;
+}
+
+/* Im Heft sollen die Schaltflächen immer untereinander stehen. */
+.booklet .actions {
+  display: flex;
+  flex-direction: column;
+}
+
+.booklet__preview {
+  min-width: 0;
+}
+
+.segmented--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.segmented--4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------- Druckbogen */
+
+.sheets {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.sheet {
+  width: 105mm;
+  height: 148mm;
+  flex: none;
+  background: #fff;
+  color: #000;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: var(--shadow);
+  padding: 7mm;
+  overflow: hidden;
+  display: flex;
+}
+
+.sheet__grid {
+  display: grid;
+  gap: 4mm;
+  width: 100%;
+  height: 100%;
+}
+
+.sheet__grid[data-per="1"] {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+/* Zwei Rätsel: je nach Rasterform untereinander oder nebeneinander. */
+.sheet__grid[data-per="2"][data-layout="row"] {
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(2, 1fr);
+}
+
+.sheet__grid[data-per="2"][data-layout="col"] {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 1fr;
+}
+
+/* --------------------------------------------------------- Einzelnes Rätsel */
+
+.mini {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  break-inside: avoid;
+}
+
+.mini__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 3mm;
+  font-size: 7pt;
+  line-height: 1;
+  margin-bottom: 1.5mm;
+}
+
+.mini__no {
+  font-weight: 700;
+  font-size: 9pt;
+}
+
+.mini__board {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Die Grösse wird in Millimetern gesetzt, damit alles gleich gross bleibt. */
+.mini__board .board-svg {
+  max-width: 100%;
+  max-height: 100%;
+  flex: none;
+}
+
+/* Schwierigkeitsgrad und Seed stehen unter dem Rätsel. */
+.mini__foot {
+  margin-top: 1.5mm;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2mm;
+  font-size: 5.8pt;
+  line-height: 1.2;
+}
+
+.mini__level {
+  font-weight: 700;
+  color: #333;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mini__seed {
+  color: #888;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.03em;
+}
+
+/* Zeilenzähler für die Anzahl der Rätsel. */
+.count-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count-row .input {
+  width: 88px;
+  flex: none;
+}
+
+/* ----------------------------------------------------------------- Druck */
+
+@media print {
+  @page {
+    size: A6 portrait;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  .booklet__controls,
+  .topbar,
+  .footer {
+    display: none !important;
+  }
+
+  .booklet__main {
+    display: block;
+  }
+
+  .sheets {
+    display: block;
+    gap: 0;
+  }
+
+  .sheet {
+    width: 105mm;
+    height: 147.6mm;
+    margin: 0;
+    padding: 6mm;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .booklet__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .booklet__controls {
+    position: static;
+  }
+
+  .sheets {
+    overflow-x: auto;
+    align-items: flex-start;
+  }
+}

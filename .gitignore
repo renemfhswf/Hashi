@@ -1,0 +1,24 @@
+# Abhängigkeiten
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Testartefakte
+coverage/
+.nyc_output/
+*.lcov
+
+# Build-Ausgaben (falls später ein Build ergänzt wird)
+_site/
+dist/
+build/
+
+# Editor & Betriebssystem
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

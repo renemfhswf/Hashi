@@ -1,0 +1,68 @@
+name: CI & Deploy
+
+# Tests laufen bei jedem Push, das Deployment nur auf dem main-Branch.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Ein laufendes Deployment wird abgebrochen, wenn ein neuer Push kommt.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Die Testsuite prüft die erzeugten Rätsel auf Gültigkeit.
+      - name: Tests ausführen
+        run: npm test
+
+  deploy:
+    name: Deploy nach GitHub Pages
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Pages einrichten
+        uses: actions/configure-pages@v5
+
+      # Kein Build nötig: die App besteht aus statischen Dateien.
+      # Es werden nur die Dateien veröffentlicht, die die Website braucht.
+      - name: Dateien zusammenstellen
+        run: |
+          mkdir -p _site
+          cp index.html puzzlebook.html favicon.svg _site/
+          cp -r css js _site/
+
+      - name: Artefakt hochladen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v4
