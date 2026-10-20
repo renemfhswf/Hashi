@@ -195,6 +195,30 @@ describe('generatePuzzle – Robustheit', () => {
   });
 });
 
+describe('generatePuzzle – Doppelbrücken', () => {
+  test('jede Stufe erzeugt auch Doppelbrücken', () => {
+    for (const difficulty of DIFFICULTY_IDS) {
+      let withDoubles = 0;
+      for (const seed of SEEDS) {
+        const puzzle = generatePuzzle({ difficulty, seed });
+        assert.ok(
+          puzzle.solution.some((c) => c === 2),
+          `${difficulty}/${seed} enthält keine Doppelbrücke`,
+        );
+        withDoubles++;
+      }
+      assert.equal(withDoubles, SEEDS.length);
+    }
+  });
+
+  test('die Zahl der Doppelbrücken wird mitgezählt', () => {
+    const puzzle = generatePuzzle({ difficulty: 'medium', seed: 'DOPPEL' });
+    const expected = puzzle.solution.filter((c) => c === 2).length;
+    assert.equal(puzzle.doubles, expected);
+    assert.ok(puzzle.doubles > 0);
+  });
+});
+
 describe('generatePuzzle – Heft-Format (DIN A6)', () => {
   test('erzeugt Rätsel mit etwa 100 Inseln', () => {
     for (let i = 0; i < 3; i++) {

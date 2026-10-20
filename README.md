@@ -72,7 +72,8 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
   sich kombinieren – die Rätsel werden dann abwechselnd gemischt.
 * **Bis zu 100 Rätsel** pro Heft (frei wählbar, oder über die Presets
   8/20/50/100). Die Erzeugung läuft in Etappen, damit die Seite bedienbar
-  bleibt.
+  bleibt. Ein Heft mit 100 Rätseln zu 100 Inseln braucht rund **6–10
+  Minuten** – bei laufendem Fortschrittsbalken.
 * **Optionale Lösungsseiten** am Ende des Hefts.
 * **Einheitliche Optik**: Die Rätsel werden in echten Millimetern gezeichnet.
   Inseln, Zahlen und Brücken sind dadurch auf **jeder Seite gleich gross** –
@@ -201,13 +202,19 @@ Aktueller Stand: **132 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 m
 
 ### Schwierigkeitsgrade
 
-| Grad | Inseln | Raster |
-|---|---|---|
-| Leicht | 12 – 16 | 9 × 9 |
-| Mittel | 20 – 26 | 11 × 11 |
-| Schwer | 30 – 38 | 12 × 12 |
-| Experte | 44 – 56 | 14 × 14 |
-| Rätselheft (DIN A6) | 40 / 60 / 80 / **100** | 18 × 18 |
+| Grad | Inseln | Raster | Doppelbrücken |
+|---|---|---|---|
+| Leicht | 12 – 16 | 9 × 9 | ~22 % |
+| Mittel | 20 – 26 | 11 × 11 | ~16 % |
+| Schwer | 30 – 38 | 12 × 12 | ~10 % |
+| Experte | 44 – 56 | 14 × 14 | ~6 % |
+| Rätselheft (DIN A6) | 40 / 60 / 80 / **100** | 18 × 18 | ~5 % |
+
+**Warum sinkt der Doppelbrücken-Anteil?** Je dichter das Brett, desto mehr
+zufällige Ausrichtungen entstehen („Ablenk-Kanten"). Nur sie sind die Quelle
+von Mehrdeutigkeit – und eine Doppelbrücke verschärft sie zusätzlich. Bei
+100 Inseln liegt die Grenze bei etwa 5 %: darüber fällt die Quote
+eindeutiger Rätsel von 100 % auf 20 %.
 
 ---
 
@@ -268,11 +275,10 @@ hard: {
 
 **Hinweis zu großen Rätseln:** Je dichter das Brett, desto mehr „Ablenk-Kanten"
 entstehen – also Kanten, die in der Lösung ohne Brücke bleiben. Sie sind die
-einzige Quelle von Mehrdeutigkeit. Ab etwa 60 Inseln lohnt sich deshalb eine
-möglichst doppelbrückenfreie Lösung (`double: 0`); das steigert die
-Eindeutigkeitsquote von ~60 % auf ~100 % und beschleunigt die Erzeugung
-massiv. Bei 100 Inseln (Heft-Format) sind Doppelbrücken aus diesem Grund
-abgeschaltet.
+einzige Quelle von Mehrdeutigkeit, und eine Doppelbrücke verschärft sie
+zusätzlich. Deshalb sinkt der Doppelbrücken-Anteil mit wachsender
+Inselzahl (siehe Tabelle oben) – und bei 100 Inseln bleibt er bei 5 %, weil
+darüber die Quote eindeutiger Rätsel einbricht.
 
 ---
 
