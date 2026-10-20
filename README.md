@@ -14,7 +14,7 @@ Abhängigkeiten.
 
 | | |
 |---|---|
-| **Rätselgenerator** | Erzeugt Rätsel in vier Schwierigkeitsgraden (Leicht → Experte) |
+| **Rätselgenerator** | Erzeugt dichte Rätsel in vier Schwierigkeitsgraden (12 – 56 Inseln) |
 | **Eindeutig lösbar** | Jedes Rätsel wird per Solver geprüft – es gibt immer **genau eine** Lösung |
 | **Seed & Teilen** | Gleicher Seed + Schwierigkeit = gleiches Rätsel. Per Link teilbar |
 | **Spielkomfort** | Undo/Redo, Hinweis, Lösung prüfen, Lösung einblenden, Timer |
@@ -66,6 +66,8 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
 * **Automatische Anpassung**: sind die Raster zu gross, wird automatisch nur
   **ein** Rätsel pro Seite gesetzt. Die Anordnung (untereinander oder
   nebeneinander) richtet sich nach der Form des Rasters.
+* **Inseln pro Rätsel** frei wählbar (40/60/80/**100**). Etwa 100 Inseln
+  füllen eine DIN-A6-Seite genau aus.
 * **Mehrere Schwierigkeitsgrade**: Leicht, Mittel, Schwer und Experte lassen
   sich kombinieren – die Rätsel werden dann abwechselnd gemischt.
 * **Bis zu 100 Rätsel** pro Heft (frei wählbar, oder über die Presets
@@ -197,6 +199,16 @@ Getestet werden:
 
 Aktueller Stand: **132 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 ms.
 
+### Schwierigkeitsgrade
+
+| Grad | Inseln | Raster |
+|---|---|---|
+| Leicht | 12 – 16 | 9 × 9 |
+| Mittel | 20 – 26 | 11 × 11 |
+| Schwer | 30 – 38 | 12 × 12 |
+| Experte | 44 – 56 | 14 × 14 |
+| Rätselheft (DIN A6) | 40 / 60 / 80 / **100** | 18 × 18 |
+
 ---
 
 ## 🧠 Wie der Generator funktioniert
@@ -208,8 +220,10 @@ Schritten:
    Ausgehend von einer Zufallsinsel werden neue Inseln angehängt. Jede neue
    Insel erhält maximal eine zusätzliche „Ablenk-Kante" (eine Insel, die nur
    zufällig auf derselben Linie liegt). Kreuzungen und Brücken über Inseln
-   werden von Anfang an verhindert. Am Ende entsteht ein **Baum** aus
-   Brücken – daraus ergeben sich die Inselzahlen.
+   werden von Anfang an verhindert. Ein Faktor sorgt dafür, dass sich die
+   Inseln gleichmäßig über das Brett verteilen statt in einem Klumpen zu
+   landen. Am Ende entsteht ein **Baum** aus Brücken – daraus ergeben sich
+   die Inselzahlen.
 
 2. **Eindeutigkeit herstellen**
    Ein zufällig gewachsenes Rätsel ist fast immer mehrdeutig. Ein
@@ -240,16 +254,25 @@ In [`js/generator.js`](js/generator.js) unter `DIFFICULTIES`:
 hard: {
   id: 'hard',
   label: 'Schwer',
-  min: 15,        // minimale Inselzahl
-  max: 19,        // maximale Inselzahl
-  cols: 10, rows: 10,   // Rastergrösse
-  double: 0.36,   // Wahrscheinlichkeit für Doppelbrücken
-  maxExtra: 1,    // erlaubte "Ablenk-Kanten" je Insel
+  min: 30,        // minimale Inselzahl
+  max: 38,        // maximale Inselzahl
+  cols: 12, rows: 12,   // Rastergrösse
+  double: 0.06,   // Wahrscheinlichkeit für Doppelbrücken
+  maxExtra: 2,    // erlaubte "Ablenk-Kanten" je Insel
   tries: 60,      // Generierungsversuche
-  maxRepair: 420, // Iterationen der Reparaturschleife
-  keep: 3,        // Anzahl Kandidaten für die Qualitätsauswahl
+  maxRepair: 70,  // Iterationen der Reparaturschleife
+  repairLimit: 32, // Reparaturschleife nur bis zu dieser Inselzahl
+  keep: 2,        // Anzahl Kandidaten für die Qualitätsauswahl
 },
 ```
+
+**Hinweis zu großen Rätseln:** Je dichter das Brett, desto mehr „Ablenk-Kanten"
+entstehen – also Kanten, die in der Lösung ohne Brücke bleiben. Sie sind die
+einzige Quelle von Mehrdeutigkeit. Ab etwa 60 Inseln lohnt sich deshalb eine
+möglichst doppelbrückenfreie Lösung (`double: 0`); das steigert die
+Eindeutigkeitsquote von ~60 % auf ~100 % und beschleunigt die Erzeugung
+massiv. Bei 100 Inseln (Heft-Format) sind Doppelbrücken aus diesem Grund
+abgeschaltet.
 
 ---
 

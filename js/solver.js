@@ -154,6 +154,37 @@ export class Solver {
   }
 
   /**
+   * Anzahl der Möglichkeiten, die restlichen Brücken einer Insel zu verteilen.
+   * Wenige Möglichkeiten = die Insel ist stark eingeschränkt und eignet sich
+   * als Verzweigungspunkt (klassische CSP-Heuristik).
+   *
+   * @param {number} islandIndex  Index der Insel
+   * @param {Int8Array} dom       aktuelle Domänen
+   */
+  waysFor(islandIndex, dom) {
+    const edges = this.incident[islandIndex];
+    if (!edges || !edges.length) return 1;
+    const need = this.islands[islandIndex].num;
+    // Verteilung der noch offenen Summe zählen (kleine DP über die Kanten)
+    let counts = new Map([[0, 1]]);
+    for (const e of edges) {
+      const d = dom[e];
+      const next = new Map();
+      for (const [sum, count] of counts) {
+        for (let v = 0; v <= 2; v++) {
+          if (!(d & (1 << v))) continue;
+          const s = sum + v;
+          if (s > need) break;
+          next.set(s, (next.get(s) ?? 0) + count);
+        }
+      }
+      counts = next;
+      if (!counts.size) return 0;
+    }
+    return counts.get(need) ?? 0;
+  }
+
+  /**
    * Sucht bis zu `limit` Lösungen.
    * @param {number} limit
    * @returns {number[][]} Array von Brückenzahlen pro Kante
@@ -201,20 +232,38 @@ export class Solver {
       if (solutions.length >= limit) return;
       this.nodes++;
 
-      // Verzweigung: Kante mit der kleinsten Domäne wählen
+      // Verzweigung: Kante an der am stärksten eingeschränkten Insel wählen.
+      // Das ist bei dichten Brettern deutlich schneller als "kleinste Domäne".
       let best = -1;
       let bestScore = Infinity;
-      for (let e = 0; e < m; e++) {
-        const size = popcount(d[e]);
-        if (size <= 1) continue;
-        const score = size * 1000 + crossings[e].length;
-        if (score < bestScore) {
-          bestScore = score;
-          best = e;
+      for (let i = 0; i < islands.length; i++) {
+        const ways = this.waysFor(i, d);
+        if (ways === 0) return; // nicht mehr erfüllbar
+        if (ways > 64) continue; // zu unscharf, hilft nicht
+        for (const e of incident[i]) {
+          const size = popcount(d[e]);
+          if (size <= 1) continue;
+          // Wenige Verteilungsmöglichkeiten sind besser, danach die kleinere Domäne
+          const score = ways * 100 + size;
+          if (score < bestScore) {
+            bestScore = score;
+            best = e;
+          }
         }
       }
 
       if (best === -1) {
+        // Nichts ist stark eingeschränkt -> beliebige offene Kante nehmen
+        for (let e = 0; e < m; e++) {
+          if (popcount(d[e]) > 1) {
+            best = e;
+            break;
+          }
+        }
+      }
+
+      if (best === -1) {
+        // Alle Kanten sind festgelegt -> Kandidat prüfen
         const counts = new Int8Array(m);
         for (let e = 0; e < m; e++) counts[e] = valOf(d[e]);
         if (isCompleteSolution(counts)) solutions.push(Array.from(counts));

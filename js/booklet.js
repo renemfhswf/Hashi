@@ -3,7 +3,7 @@
  * Druckbögen im DIN-A6-Format zusammen (1, 2 oder 4 Rätsel pro Seite).
  */
 
-import { generatePuzzle, DIFFICULTIES, DIFFICULTY_IDS } from './generator.js';
+import { generatePuzzle, DIFFICULTIES, DIFFICULTY_IDS, BOOKLET_FORMAT } from './generator.js';
 import { buildBoard } from './board.js';
 import { randomSeed } from './rng.js';
 import { boardToSvgElement, boardToSvgElementWithSolution, SVG_VIEW_PAD } from './svg.js';
@@ -16,6 +16,7 @@ const ui = {
   perPage: $('perPage'),
   count: $('count'),
   countInput: $('countInput'),
+  islands: $('islands'),
   seedInput: $('seedInput'),
   copyBtn: $('copyBtn'),
   withSolutions: $('withSolutions'),
@@ -37,6 +38,7 @@ const state = {
   difficulties: ['medium'], // mehrere Grade werden gemischt
   perPage: 2,
   count: 8,
+  islands: 100, // Inseln pro Rätsel
   seed: randomSeed(),
   withSolutions: true,
   puzzles: [],
@@ -59,7 +61,13 @@ function makePuzzle(index) {
   const levels = activeDifficulties();
   const difficulty = levels[index % levels.length];
   const seed = `${state.seed}-${index + 1}`;
-  const puzzle = generatePuzzle({ difficulty, seed });
+  const puzzle = generatePuzzle({
+    difficulty,
+    seed,
+    islands: state.islands,
+    format: BOOKLET_FORMAT,
+    keep: 1,
+  });
   const board = buildBoard(
     puzzle.islands.map((isl) => ({ id: isl.id, r: isl.r, c: isl.c, num: isl.num })),
     puzzle.cols,
@@ -163,7 +171,8 @@ function render() {
     .join(' / ');
 
   ui.info.textContent =
-    `${puzzles.length} Rätsel · ${levels} · ${pages.length} Seiten` +
+    `${puzzles.length} Rätsel · ${puzzles[0]?.islands.length ?? state.islands} Inseln · ${levels} · ` +
+    `${pages.length} Seiten` +
     (singles ? ` (${doubles} mit 2, ${singles} mit 1 Rätsel)` : ' mit je 2 Rätseln') +
     (state.withSolutions ? ` + ${pages.length} Lösungsseiten` : '') +
     ` · DIN A6 · Seed ${state.seed}`;
@@ -186,6 +195,9 @@ function syncGroups() {
   for (const button of ui.count.querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(Number(button.dataset.count) === state.count));
   }
+  for (const button of ui.islands.querySelectorAll('button')) {
+    button.setAttribute('aria-pressed', String(Number(button.dataset.islands) === state.islands));
+  }
 }
 
 function updateHash() {
@@ -194,6 +206,7 @@ function updateHash() {
     d: activeDifficulties().join(','),
     n: String(state.count),
     per: String(state.perPage),
+    ins: String(state.islands),
   });
   if (state.withSolutions) params.set('sol', '1');
   const hash = `#${params.toString()}`;
@@ -219,6 +232,8 @@ function readHash() {
   if (levels.length) out.difficulties = levels;
 
   if (Number.isFinite(n) && n >= 1 && n <= MAX_PUZZLES) out.count = Math.round(n);
+  const ins = Number(params.get('ins'));
+  if ([40, 60, 80, 100].includes(ins)) out.islands = ins;
   if ([1, 2].includes(per)) out.perPage = per;
   if (params.get('sol') === '1') out.withSolutions = true;
   return out;
@@ -313,6 +328,14 @@ function setupEvents() {
     button.addEventListener('click', () => {
       state.count = Number(button.dataset.count);
       ui.countInput.value = String(state.count);
+      syncGroups();
+      generate();
+    });
+  }
+
+  for (const button of ui.islands.querySelectorAll('button')) {
+    button.addEventListener('click', () => {
+      state.islands = Number(button.dataset.islands);
       syncGroups();
       generate();
     });

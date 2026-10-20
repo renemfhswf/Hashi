@@ -33,55 +33,73 @@ export const DIFFICULTIES = {
   easy: {
     id: 'easy',
     label: 'Leicht',
-    min: 7,
-    max: 10,
-    cols: 8,
-    rows: 8,
-    double: 0.22,
-    maxExtra: 0,
-    tries: 60,
-    maxRepair: 300,
-    keep: 4,
+    min: 12,
+    max: 16,
+    cols: 9,
+    rows: 9,
+    double: 0.14,
+    maxExtra: 1,
+    tries: 40,
+    maxRepair: 220,
+    repairLimit: 40,
+    keep: 3,
   },
   medium: {
     id: 'medium',
     label: 'Mittel',
-    min: 10,
-    max: 14,
-    cols: 9,
-    rows: 9,
-    double: 0.3,
+    min: 20,
+    max: 26,
+    cols: 11,
+    rows: 11,
+    double: 0.1,
     maxExtra: 1,
-    tries: 60,
-    maxRepair: 360,
-    keep: 4,
+    tries: 45,
+    maxRepair: 140,
+    repairLimit: 40,
+    keep: 3,
   },
   hard: {
     id: 'hard',
     label: 'Schwer',
-    min: 14,
-    max: 19,
-    cols: 10,
-    rows: 10,
-    double: 0.36,
-    maxExtra: 1,
+    min: 30,
+    max: 38,
+    cols: 12,
+    rows: 12,
+    double: 0.06,
+    maxExtra: 2,
     tries: 60,
-    maxRepair: 420,
-    keep: 3,
+    maxRepair: 70,
+    repairLimit: 32,
+    keep: 2,
   },
   expert: {
     id: 'expert',
     label: 'Experte',
-    min: 18,
-    max: 24,
-    cols: 12,
-    rows: 11,
-    double: 0.42,
+    min: 44,
+    max: 56,
+    cols: 14,
+    rows: 14,
+    double: 0.04,
     maxExtra: 2,
-    tries: 60,
-    maxRepair: 480,
+    tries: 80,
+    maxRepair: 40,
+    repairLimit: 0,
     keep: 2,
   },
+};
+
+/**
+ * Sehr grosses Format für das Rätselheft: etwa 100 Inseln auf einer
+ * DIN-A6-Seite. Wird über `islands` in `generatePuzzle` angesteuert.
+ *
+ * Bewusst ohne Doppelbrücken: bei dieser Dichte sorgen Doppelbrücken für
+ * deutliche Mehrdeutigkeit – und damit für sehr lange Suchzeiten.
+ */
+export const BOOKLET_FORMAT = {
+  cols: 18,
+  rows: 18,
+  maxExtra: 2,
+  double: 0,
 };
 
 export const DIFFICULTY_IDS = Object.keys(DIFFICULTIES);
@@ -171,6 +189,28 @@ function crossesExisting(islands, edges, r1, c1, r2, c2) {
 }
 
 /**
+ * Faktor, der Positionen nahe am Rand des belegten Bereichs bevorzugt.
+ * Der Schwerpunkt der bereits gesetzten Inseln dient als Bezugspunkt;
+ * je weiter eine neue Insel vom Schwerpunkt entfernt liegt, desto höher
+ * der Faktor. Das verhindert, dass alle Inseln in einem Klumpen landen.
+ */
+function spreadFactor(islands, r, c, rows, cols) {
+  if (islands.length < 3) return 1;
+  let sr = 0;
+  let sc = 0;
+  for (const i of islands) {
+    sr += i.r;
+    sc += i.c;
+  }
+  const cr = sr / islands.length;
+  const cc = sc / islands.length;
+  const diag = Math.hypot(rows, cols) / 2;
+  const dist = Math.hypot(r - cr, c - cc) / diag;
+  // 0.6 .. 1.8
+  return 0.6 + Math.min(1.2, dist * 1.6);
+}
+
+/**
  * Baut eine zufällige, kreuzungsfreie Lösung.
  * @returns {{cols:number, rows:number, islands:{r:number,c:number}[], edges:{a:number,b:number,w:number}[]}|null}
  */
@@ -218,11 +258,17 @@ function growSolution(rng, target, cols, rows, doubleChance, maxExtra) {
           const extra = deg - 1;
           if (extra > maxExtra) continue;
 
+          // Ausbreitung fördern: Positionen, die vom Schwerpunkt der bisherigen
+          // Inseln weiter entfernt sind, werden bevorzugt. So verteilen sich
+          // die Inseln gleichmässig über das Brett statt in einem Klumpen.
+          const spread = spreadFactor(islands, nr, nc, rows, cols);
+
           let w = 1;
           if (degreeOf(i) <= 1) w *= 2.2; // Ketten weiterbauen -> organischere Form
           if (extra === 0) w *= 2.5; // decoy-frei bevorzugen
           if (deg >= 4) w *= 0.05;
           else if (deg === 3) w *= 0.4;
+          w *= spread;
 
           cands.push({ parent: i, r: nr, c: nc });
           weights.push(w);
@@ -377,6 +423,23 @@ function withEdge(sol, a, b, w) {
   return copy;
 }
 
+/**
+ * Kopie der Lösung mit einer zusätzlichen Brücke.
+ * Damit entstehen Kreise in der Lösung – das erweitert den Raum möglicher
+ * Reparaturen erheblich (eine Brücke aus einem Kreis kann entfernt werden,
+ * ohne das Netz zu zerreissen).
+ */
+function addEdge(sol, a, b, w) {
+  if (sol.edges.some((e) => edgeKey(e.a, e.b) === edgeKey(a, b))) return null;
+  const copy = {
+    cols: sol.cols,
+    rows: sol.rows,
+    islands: sol.islands.map((i) => ({ ...i })),
+    edges: [...sol.edges.map((e) => ({ ...e })), { a, b, w }],
+  };
+  return copy;
+}
+
 /** Bewertet eine Lösung: wie weit ist das Brett allein durch Logik bestimmt? */
 function evaluate(sol) {
   const nums = numbersOf(sol);
@@ -472,6 +535,68 @@ function buildNeighbourhood(sol, board, status, rng) {
 }
 
 /**
+ * Ermittelt einen Brückenzahl-Wert, der die alternative Lösung invalidiert.
+ *
+ * Hintergrund: Ändert man die Brückenzahl einer Kante von `w` auf `w2`, so
+ * ändert sich die Inselzahl um `w2 - w`. Die alternative Lösung ist nur dann
+ * weiterhin gültig, wenn ihre Brückenzahl auf dieser Kante um genau denselben
+ * Betrag abweicht. Gesucht ist also ein `w2` mit `w2 - w != wp - w`.
+ *
+ * @param {number} w    Brückenzahl der beabsichtigten Lösung
+ * @param {number} wp   Brückenzahl der alternativen Lösung
+ * @returns {number|null} neuer Wert oder null, wenn keiner hilft
+ */
+function counterValue(w, wp) {
+  switch (`${w}-${wp}`) {
+    case '1-2':
+      return 0;
+    case '1-0':
+      return 2;
+    case '0-1':
+      return 2;
+    case '0-2':
+      return 1;
+    case '2-0':
+      return 1;
+    case '2-1':
+      return 0;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Versucht gezielt, eine der alternativen Lösungen zu zerstören, indem die
+ * Brückenzahl einer Kante geändert wird, an der sie sich vom Ziel unterscheidet.
+ *
+ * @returns {object|null} neue Lösung oder null
+ */
+function killAlternative(sol, board, intended, solutions, rng) {
+  const alternatives = solutions.slice(1);
+  if (!alternatives.length) return null;
+  rng.shuffle(alternatives);
+
+  for (const alt of alternatives) {
+    const diffs = [];
+    for (let e = 0; e < board.edges.length; e++) {
+      if (alt[e] !== intended[e]) diffs.push(e);
+    }
+    if (!diffs.length) continue;
+    rng.shuffle(diffs);
+
+    for (const e of diffs) {
+      const next = counterValue(intended[e], alt[e]);
+      if (next === null) continue;
+      const edge = board.edges[e];
+      const candidate = withEdge(sol, edge.a, edge.b, next);
+      if (!candidate || !validateSolution(candidate)) continue;
+      return candidate;
+    }
+  }
+  return null;
+}
+
+/**
  * Hill-Climbing: mutiert die Lösung, bis das Brett eindeutig lösbar ist.
  *
  * Zwei Erfolgskriterien:
@@ -481,73 +606,79 @@ function buildNeighbourhood(sol, board, status, rng) {
  */
 function repair(sol, rng, maxIter) {
   let current = sol;
+  let currentBoard = boardOf(current, numbersOf(current));
+  let intended = countsOf(currentBoard, current);
+  let solutions = findSolutions(currentBoard, 3);
+  let currentCount = solutions.length;
   let best = null;
   let bestScore = -Infinity;
-  let stagnant = 0;
-  const PATIENCE = 20;
 
   for (let iter = 0; iter < maxIter; iter++) {
-    const ev = evaluate(current);
-    const score = scoreOf(ev);
-
-    if (ev.count === 1) {
-      const intended = countsOf(ev.board, current);
-      if (sameArray(intended, ev.status.counts ?? intended)) return current;
-    }
-
+    const score = currentCount === 1 ? 1e6 + currentBoard.edges.length : -currentCount * 1000;
     if (score > bestScore) {
       bestScore = score;
       best = current;
-      stagnant = 0;
-    } else {
-      stagnant++;
     }
 
-    const hood = buildNeighbourhood(current, ev.board, ev.status, rng);
+    if (currentCount === 1) {
+      if (sameArray(solutions[0], intended)) return current;
+    }
+    if (currentCount === 0) return null;
+
+    // 1) Gezielt eine alternative Lösung ausschalten
+    const killed = killAlternative(current, currentBoard, intended, solutions, rng);
+    if (killed) {
+      current = killed;
+      currentBoard = boardOf(current, numbersOf(current));
+      intended = countsOf(currentBoard, current);
+      solutions = findSolutions(currentBoard, 3);
+      currentCount = solutions.length;
+      continue;
+    }
+
+    // 2) Notlösung: Sättigung oder zufällige Mutation
+    const status = propagationStatus(currentBoard);
+    const hood = buildNeighbourhood(current, currentBoard, status, rng);
     if (!hood.length) break;
 
-    const sample = rng.shuffle(hood.slice()).slice(0, 22);
+    const sample = rng.shuffle(hood.slice()).slice(0, 16);
     let chosen = null;
-    let chosenScore = score;
-
+    let chosenCount = currentCount;
     for (const cand of sample) {
       if (!validateSolution(cand)) continue;
       const cev = evaluate(cand);
-      const cs = scoreOf(cev);
-      if (cs > chosenScore || (cs === chosenScore && rng.chance(0.06))) {
+      if (cev.count < chosenCount) {
         chosen = cand;
-        chosenScore = cs;
+        chosenCount = cev.count;
       }
       if (cev.count === 1) break;
     }
 
     if (!chosen) {
-      if (stagnant > PATIENCE) {
-        // Sackgasse: von der besten Lösung aus neu starten
-        if (!best) break;
-        current = best;
-        bestScore = -Infinity;
-        stagnant = 0;
-        const fresh = buildNeighbourhood(current, ev.board, ev.status, rng);
-        if (!fresh.length) break;
-        const picked = rng.pick(fresh);
-        if (!validateSolution(picked)) break;
-        current = picked;
-        continue;
-      }
-      break;
+      if (currentCount === 1) break;
+      // Kein Fortschritt: zufällige Störung und weiter
+      const picked = rng.pick(hood);
+      if (!validateSolution(picked)) break;
+      current = picked;
+      currentBoard = boardOf(current, numbersOf(current));
+      intended = countsOf(currentBoard, current);
+      solutions = findSolutions(currentBoard, 3);
+      currentCount = solutions.length;
+      continue;
     }
 
     current = chosen;
+    currentBoard = boardOf(current, numbersOf(current));
+    intended = countsOf(currentBoard, current);
+    solutions = findSolutions(currentBoard, 3);
+    currentCount = solutions.length;
   }
 
   // Abschlussprüfung der besten gefundenen Lösung
   if (best) {
-    const ev = evaluate(best);
-    if (ev.count === 1) {
-      const intended = countsOf(ev.board, best);
-      if (sameArray(intended, ev.status.counts ?? intended)) return best;
-    }
+    const board = boardOf(best, numbersOf(best));
+    const sols = findSolutions(board, 2);
+    if (sols.length === 1 && sameArray(sols[0], countsOf(board, best))) return best;
   }
   return null;
 }
@@ -626,6 +757,10 @@ export const internals = {
   numbersOf,
   validateSolution,
   starFallback,
+  withEdge,
+  addEdge,
+  killAlternative,
+  counterValue,
 };
 
 /* ------------------------------------------------------------------ *
@@ -638,43 +773,53 @@ export const internals = {
  * @param {object} options
  * @param {string} [options.difficulty] 'easy' | 'medium' | 'hard' | 'expert'
  * @param {string} [options.seed]        Seed für reproduzierbare Rätsel
+ * @param {number} [options.islands]     Feste Inselzahl (überschreibt den Bereich)
+ * @param {object} [options.format]      Rasterformat (siehe BOOKLET_FORMAT)
+ * @param {number} [options.keep]        Anzahl Kandidaten für die Qualitätsauswahl
  */
-export function generatePuzzle({ difficulty = 'medium', seed = randomSeed() } = {}) {
+export function generatePuzzle({
+  difficulty = 'medium',
+  seed = randomSeed(),
+  islands = null,
+  format = null,
+  keep = null,
+} = {}) {
   const cfg = DIFFICULTIES[difficulty] ?? DIFFICULTIES.medium;
-  const rng = new RNG(`${seed}|${difficulty}|hashi-v2`);
+  const fmt = format ?? cfg;
+  const rng = new RNG(`${seed}|${difficulty}|hashi-v3`);
+
+  const minIslands = islands ?? fmt.min;
+  const maxIslands = islands ?? fmt.max;
+  const tries = islands ? Math.max(12, Math.ceil(cfg.tries * 0.6)) : cfg.tries;
+  const keepCount = keep ?? cfg.keep;
 
   let best = null;
   let bestScore = -Infinity;
   let valid = 0;
 
-  for (let attempt = 0; attempt < cfg.tries; attempt++) {
-    const target = rng.range(cfg.min, cfg.max);
-    const sol = growSolution(rng, target, cfg.cols, cfg.rows, cfg.double, cfg.maxExtra);
+  for (let attempt = 0; attempt < tries; attempt++) {
+    const target = rng.range(minIslands, maxIslands);
+    const sol = growSolution(rng, target, fmt.cols, fmt.rows, fmt.double, fmt.maxExtra);
     if (!sol) continue;
     if (!validateSolution(sol)) continue;
 
     let current = sol;
-    let board = boardOf(current, numbersOf(current));
-    let counts = countsOf(board, current);
-
-    // Ist das Rätsel schon eindeutig lösbar?
-    let status = propagationStatus(board);
-    if (!status.complete) {
-      const fixed = repair(current, rng, cfg.maxRepair);
-      if (!fixed) continue;
-      current = fixed;
-      board = boardOf(current, numbersOf(current));
-      counts = countsOf(board, current);
-      status = propagationStatus(board);
+    // Die Reparaturschleife rechnet mit dem Solver und ist deshalb nur für
+    // kleine Bretter schnell genug. Bei grossen Brettern hilft stattdessen
+    // der Versuch mit einer anderen Anordnung (die Schleife unten).
+    if (fmt.repairLimit && target <= fmt.repairLimit) {
+      const fixed = repair(sol, rng, cfg.maxRepair);
+      if (fixed) current = fixed;
     }
 
     // Auf den kleinsten umschliessenden Rechteck beschneiden
     current = cropSolution(current);
-    board = boardOf(current, numbersOf(current));
-    counts = countsOf(board, current);
+
+    const board = boardOf(current, numbersOf(current));
+    const counts = countsOf(board, current);
 
     // Endgültige Härteprüfung: es darf genau eine Lösung geben
-    const solutions = findSolutions(board, 3);
+    const solutions = findSolutions(board, 2);
     if (solutions.length !== 1) continue;
     if (!sameArray(solutions[0], counts)) continue;
 
@@ -684,14 +829,18 @@ export function generatePuzzle({ difficulty = 'medium', seed = randomSeed() } = 
       bestScore = score;
       best = { board, counts };
     }
-    if (valid >= cfg.keep) break;
+    if (valid >= keepCount) break;
   }
 
   if (!best) {
-    const fb = starFallback(cfg.cols, cfg.rows);
-    if (!fb) throw new Error('Rätselgenerierung fehlgeschlagen');
-    best = { board: fb.board, counts: fb.counts };
-    bestScore = qualityScore(fb.board, fb.counts);
+    // Notfall: kleineres, leichter eindeutig lösbares Rätsel
+    const fallback = growSolution(rng, 12, 9, 9, 0.1, 1);
+    if (!fallback) throw new Error('Rätselgenerierung fehlgeschlagen');
+    const fixed = repair(fallback, rng, 300);
+    const sol = fixed ?? fallback;
+    const board = boardOf(sol, numbersOf(sol));
+    best = { board, counts: countsOf(board, sol) };
+    bestScore = qualityScore(board, best.counts);
   }
 
   return {

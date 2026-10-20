@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { generatePuzzle, DIFFICULTIES, DIFFICULTY_IDS, internals } from '../js/generator.js';
+import { generatePuzzle, DIFFICULTIES, DIFFICULTY_IDS, BOOKLET_FORMAT, internals } from '../js/generator.js';
 import { buildBoard, isConnected } from '../js/board.js';
 import { findSolutions } from '../js/solver.js';
 import { RNG } from '../js/rng.js';
@@ -195,8 +195,54 @@ describe('generatePuzzle – Robustheit', () => {
   });
 });
 
-describe('Generator-Interna', () => {
-  test('growSolution erzeugt gültige Lösungen', () => {
+describe('generatePuzzle – Heft-Format (DIN A6)', () => {
+  test('erzeugt Rätsel mit etwa 100 Inseln', () => {
+    for (let i = 0; i < 3; i++) {
+      const puzzle = generatePuzzle({
+        difficulty: 'medium',
+        seed: `HEFT-${i}`,
+        islands: 100,
+        format: BOOKLET_FORMAT,
+        keep: 1,
+      });
+      assert.equal(puzzle.islands.length, 100, `erwartet 100 Inseln, war ${puzzle.islands.length}`);
+    }
+  });
+
+  test('auch das Heft-Format ist eindeutig lösbar', () => {
+    for (let i = 0; i < 3; i++) {
+      const puzzle = generatePuzzle({
+        difficulty: 'hard',
+        seed: `HEFT-EINDEUTIG-${i}`,
+        islands: 100,
+        format: BOOKLET_FORMAT,
+        keep: 1,
+      });
+      const board = buildBoard(
+        puzzle.islands.map((isl) => ({ id: isl.id, r: isl.r, c: isl.c, num: isl.num })),
+        puzzle.cols,
+        puzzle.rows,
+      );
+      const solutions = findSolutions(board, 2);
+      assert.equal(solutions.length, 1, 'Heft-Rätsel ist nicht eindeutig');
+      assert.deepEqual(solutions[0], puzzle.solution);
+    }
+  });
+
+  test('das Heft-Format passt auf eine A6-Seite', () => {
+    const puzzle = generatePuzzle({
+      difficulty: 'medium',
+      seed: 'HEFT-GROESSE',
+      islands: 100,
+      format: BOOKLET_FORMAT,
+      keep: 1,
+    });
+    // Das Raster muss so kompakt sein, dass die Inseln auf A6 passen
+    assert.ok(puzzle.cols <= 20 && puzzle.rows <= 20, 'Raster zu gross für A6');
+  });
+});
+
+describe('Generator-Interna', () => {  test('growSolution erzeugt gültige Lösungen', () => {
     const cfg = DIFFICULTIES.medium;
     for (const seed of SEEDS) {
       const rng = new RNG(`grow|${seed}`);
