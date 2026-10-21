@@ -219,6 +219,60 @@ describe('generatePuzzle – Doppelbrücken', () => {
   });
 });
 
+describe('generatePuzzle – Brückenlängen', () => {
+  test('Brücken haben unterschiedliche Längen', () => {
+    // Die Brücken dürfen nicht alle dieselbe Länge haben – das ist eine
+    // Kernanforderung an die Optik (echte Hashi-Rätsel mischen die Längen).
+    const lengths = new Set();
+    for (const seed of SEEDS) {
+      const puzzle = generatePuzzle({ difficulty: 'hard', seed });
+      puzzle.edges.forEach((edge, i) => {
+        if (!puzzle.solution[i]) return;
+        const a = puzzle.islands[edge.a];
+        const b = puzzle.islands[edge.b];
+        lengths.add(Math.abs(a.r - b.r) + Math.abs(a.c - b.c));
+      });
+    }
+    assert.ok(lengths.size >= 3, `nur ${lengths.size} verschiedene Brückenlängen`);
+    assert.ok(lengths.has(1), 'Brücken über ein Feld sollten vorkommen');
+  });
+
+  test('lange Brücken werden unterstützt', () => {
+    const puzzle = generatePuzzle({ difficulty: 'hard', seed: 'LANG' });
+    let maxLen = 0;
+    for (const edge of puzzle.edges) {
+      const a = puzzle.islands[edge.a];
+      const b = puzzle.islands[edge.b];
+      maxLen = Math.max(maxLen, Math.abs(a.r - b.r) + Math.abs(a.c - b.c));
+    }
+    assert.ok(maxLen >= 2, `längste Brücke nur ${maxLen} Felder`);
+  });
+
+  test('zwischen den Brückenenden liegen keine Inseln', () => {
+    const puzzle = generatePuzzle({ difficulty: 'medium', seed: 'FREI' });
+    puzzle.edges.forEach((edge, i) => {
+      if (!puzzle.solution[i]) return;
+      const a = puzzle.islands[edge.a];
+      const b = puzzle.islands[edge.b];
+      if (a.r === b.r) {
+        for (let c = Math.min(a.c, b.c) + 1; c < Math.max(a.c, b.c); c++) {
+          assert.ok(
+            !puzzle.islands.some((x) => x.r === a.r && x.c === c),
+            'Brücke führt über eine Insel',
+          );
+        }
+      } else {
+        for (let r = Math.min(a.r, b.r) + 1; r < Math.max(a.r, b.r); r++) {
+          assert.ok(
+            !puzzle.islands.some((x) => x.r === r && x.c === a.c),
+            'Brücke führt über eine Insel',
+          );
+        }
+      }
+    });
+  });
+});
+
 describe('generatePuzzle – Heft-Format (DIN A6)', () => {
   test('erzeugt Rätsel mit etwa 100 Inseln', () => {
     for (let i = 0; i < 3; i++) {

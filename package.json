@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node --test",
     "test:watch": "node --test --watch",
+    "calibrate": "node scripts/calibrate.mjs",
     "serve": "npx --yes serve ."
   },
   "keywords": [

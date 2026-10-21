@@ -115,6 +115,11 @@ function newPuzzle({ difficulty = state.difficulty, seed = randomSeed() } = {}) 
   updateHash();
   save();
   render();
+  ui.difficulty.textContent = puzzle.difficultyScore.toLocaleString('de-DE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  ui.difficulty.title = `Schwierigkeitsgrad ${puzzle.difficultyScore.toFixed(2)} (${puzzle.difficultyText})`;
   setStatus(`${cfg.label} · ${state.board.islands.length} Inseln · Seed ${puzzle.seed}`);
 }
 

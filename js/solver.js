@@ -40,7 +40,8 @@ export class Solver {
     this.incident = board.incident;
     this.crossings = board.crossings;
     this.islands = board.islands;
-    this.nodes = 0; // Anzahl der Suchknoten (Statistik)
+    this.nodes = 0; // Anzahl der Verzweigungsschritte (Brute-Force)
+    this.ruleSteps = 0; // Anzahl der Propagationsdurchläufe (Logik)
   }
 
   /**
@@ -53,6 +54,7 @@ export class Solver {
     let changed = true;
     while (changed) {
       changed = false;
+      this.ruleSteps++;
 
       // (A) Insel-Summen
       for (let i = 0; i < islands.length; i++) {

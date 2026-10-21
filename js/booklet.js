@@ -175,8 +175,13 @@ function render() {
     .join(' / ');
 
   ui.info.dataset.dirty = '';
+  const avgDifficulty =
+    puzzles.length > 0
+      ? puzzles.reduce((sum, p) => sum + (p.difficultyScore ?? 0), 0) / puzzles.length
+      : 0;
   ui.info.textContent =
     `${puzzles.length} Rätsel · ${puzzles[0]?.islands.length ?? state.islands} Inseln · ${levels} · ` +
+    `Schwierigkeit Ø ${avgDifficulty.toFixed(2)} · ` +
     `${pages.length} Seiten` +
     (singles ? ` (${doubles} mit 2, ${singles} mit 1 Rätsel)` : ' mit je 2 Rätseln') +
     (state.withSolutions ? ` + ${pages.length} Lösungsseiten` : '') +

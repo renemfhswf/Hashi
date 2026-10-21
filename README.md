@@ -76,8 +76,7 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
   sich kombinieren – die Rätsel werden dann abwechselnd gemischt.
 * **Bis zu 100 Rätsel** pro Heft (frei wählbar, oder über die Presets
   8/20/50/100). Die Erzeugung läuft in Etappen, damit die Seite bedienbar
-  bleibt. Ein Heft mit 100 Rätseln zu 100 Inseln braucht rund **6–10
-  Minuten** – bei laufendem Fortschrittsbalken.
+  bleibt. Ein Heft mit 100 Rätseln zu 100 Inseln braucht rund **2 Minuten**.
 * **Optionale Lösungsseiten** am Ende des Hefts.
 * **Einheitliche Optik**: Die Rätsel werden in echten Millimetern gezeichnet.
   Inseln, Zahlen und Brücken sind dadurch auf **jeder Seite gleich gross** –
@@ -214,19 +213,13 @@ Aktueller Stand: **132 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 m
 
 ### Schwierigkeitsgrade
 
-| Grad | Inseln | Raster | Doppelbrücken |
-|---|---|---|---|
-| Leicht | 12 – 16 | 9 × 9 | ~22 % |
-| Mittel | 20 – 26 | 11 × 11 | ~16 % |
-| Schwer | 30 – 38 | 12 × 12 | ~10 % |
-| Experte | 44 – 56 | 14 × 14 | ~6 % |
-| Rätselheft (DIN A6) | 40 / 60 / 80 / **100** | 18 × 18 | ~5 % |
-
-**Warum sinkt der Doppelbrücken-Anteil?** Je dichter das Brett, desto mehr
-zufällige Ausrichtungen entstehen („Ablenk-Kanten"). Nur sie sind die Quelle
-von Mehrdeutigkeit – und eine Doppelbrücke verschärft sie zusätzlich. Bei
-100 Inseln liegt die Grenze bei etwa 5 %: darüber fällt die Quote
-eindeutiger Rätsel von 100 % auf 20 %.
+| Grad | Inseln | Raster | Doppelbrücken | Zeit je Rätsel |
+|---|---|---|---|---|
+| Leicht | 12 – 16 | 9 × 9 | ~5 | 30 ms |
+| Mittel | 20 – 26 | 11 × 11 | ~8 | 80 ms |
+| Schwer | 30 – 38 | 12 × 12 | ~9 | 100 ms |
+| Experte | 44 – 56 | 14 × 14 | ~9 | 140 ms |
+| Rätselheft (DIN A6) | 40 / 60 / 80 / **100** | 18 × 18 | ~11 | ~1 s |
 
 ---
 
@@ -264,6 +257,119 @@ Schritten:
 Der Solver in [`js/solver.js`](js/solver.js) arbeitet mit Domänen pro Kante
 (`0`, `1` oder `2` Brücken) und den drei Propagationsregeln
 **Insel-Summe**, **Kreuzungsverbot** und **Konnektivität**.
+
+### Anregung: variable Brückenlänge
+
+Die Idee, Brücken über **ein oder mehrere freie Felder** zu führen statt immer
+nur über eines, stammt aus
+[erthium/hashiwokakero](https://github.com/erthium/hashiwokakero) (GPL-3.0).
+Die Umsetzung in diesem Projekt ist eigenständig in JavaScript; das Projekt
+steht unter MIT.
+
+Der Effekt ist erstaunlich groß – gemessen bei 100 Inseln:
+
+| Brückenlänge | Versuche je eindeutigem Rätsel | Zeit |
+|---|---|---|
+| nur 1–2 Felder | 11,6 | 15,9 s |
+| bis 3 Felder | **2,9** | **1,0 s** |
+| bis 6 Felder | 3,6 | 0,6 s |
+
+Grund: längere Brücken verteilen die Inseln weiter über das Brett und
+erzeugen weniger zufällige Ausrichtungen – also weniger „Ablenk-Kanten" und
+damit weniger Mehrdeutigkeit.
+
+Nebeneffekt: die Rätsel sehen deutlich authentischer aus, weil die Brücken
+nicht alle dieselbe Länge haben. Vorher verteilten sich die Längen auf
+17,6 × einfeldrig und 21,4 × zweifeldrig – **keine einzige längere Brücke**.
+Mit variablen Längen (bis 4 Felder) sind es 11,9 / 13,0 / 7,5 / 6,6.
+
+Der Gewinn an Eindeutigkeit erlaubt zugleich **mehr Doppelbrücken** ohne
+Sackgasse: bei 40 Inseln sinkt die Zahl der benötigten Versuche von 8,7
+(bei 25 % Doppelbrücken) auf 2,5.
+
+Die zweite Idee desselben Projekts – keine zwei Inseln direkt nebeneinander
+zu platzieren – hat sich in der Messung **als schädlich erwiesen** (Quote
+fällt auf 0 %, weil das Brett dann nicht mehr gefüllt werden kann) und wurde
+deshalb nicht übernommen.
+
+Ebenfalls nicht übernommen: die dortige Generator-Routine prüft die
+Eindeutigkeit gar nicht („there may not be only 1 solution" steht so im
+README des Projekts). Diese Lücke schließt der hier verwendete Ansatz
+durch die Verifikation mit dem Solver.
+
+---
+
+## 📊 Schwierigkeitsmessung
+
+Der Ansatz stammt ebenfalls aus `erthium/hashiwokakero`: die Schwierigkeit
+ergibt sich aus dem **Solver-Aufwand** plus wenigen Strukturmetriken,
+normiert gegen Referenzbereiche.
+
+Hier wird das in [`js/difficulty.js`](js/difficulty.js) umgesetzt:
+
+| Metrik | Gewicht | Bedeutung |
+|---|---|---|
+| `nodes` | 0,40 | Verzweigungsschritte des Solvers (Brute-Force-Aufwand) |
+| `logicShare` | 0,30 | Anteil der Kanten, die **allein durch Logik** bestimmbar sind |
+| `avgNumber` | 0,20 | mittlere Inselzahl |
+| `density` | 0,10 | Inseldichte |
+
+Zwei Anpassungen gegenüber dem Vorbild:
+
+* **Logarithmus statt Linearwert.** Die Knotenzahl ist stark schief verteilt
+  (typisch 1–3 bei kleinen, aber auch 350 bei grossen Brettern). Eine lineare
+  Normalisierung verstärkt kleine Unterschiede extrem – der Logarithmus
+  verteilt die Werte gleichmässig.
+* **Normierung gegen die Gesamtverteilung**, nicht gegen einzelne
+  Geometrien. Das Brett wird auf seinen kleinsten umschliessenden Rechteck
+  beschnitten, die Geometrie wechselt also ständig. Nur die globale Normierung
+  hält die Werte zwischen verschiedenen Brettgrössen vergleichbar.
+
+Die Referenzbereiche stecken in
+[`js/data/difficulty.js`](js/data/difficulty.js) und werden erzeugt von:
+
+```bash
+npm run calibrate      # dauert einige Minuten
+```
+
+Nach jeder Änderung am Generator sollte die Kalibrierung neu laufen – sonst
+passen die Referenzbereiche nicht mehr zum Erzeuger.
+
+Der gemessene Wert steht in der App oben rechts und im Rätselheft als
+Durchschnitt. Die Einordnung fällt überraschend klar aus:
+
+| Inselzahl | Solver-Knoten (Median) | rein logisch lösbar |
+|---|---|---|
+| 10–19 | 1 | 100 % |
+| 20–29 | 2 | 60 % |
+| 30–39 | 7 | 29 % |
+| 40–59 | 20 | 13 % |
+| 60–79 | 61 | 9 % |
+| 80–120 | 356 | 4 % |
+
+Bemerkenswert: die **Korrelation zwischen Inselzahl und Solver-Aufwand
+beträgt nur r = 0,65** – der Aufwand trägt also echte Zusatzinformation
+und ist mehr als ein Synonym für die Brettgrösse. Umgekehrt korreliert die
+bisherige Struktur-Heuristik (`qualityScore`, die das „interessanteste"
+Rätsel aus den Kandidaten wählt) nur mit **r = 0,66** zum Solver-Aufwand –
+die beiden messen also tatsächlich verschiedene Dinge und ergänzen sich.
+
+Die gemessenen Werte der Stufen:
+
+| Stufe | Ø Schwierigkeitsgrad | Einordnung |
+|---|---|---|
+| Leicht | 0,28 | sehr leicht – leicht |
+| Mittel | 0,26 | sehr leicht – leicht |
+| Schwer | 0,32 | sehr leicht – mittel |
+| Experte | 0,55 | mittel – schwer |
+| Heft (100 Inseln) | 0,66 | sehr schwer |
+
+Auffällig: die kleinen Stufen liegen dicht beieinander. Der Grund ist
+ehrlich und nützlich – **kleine Rätsel sind fast vollständig durch Logik
+lösbar** (100 % bzw. 60 % Anteil rein logisch bestimmter Kanten). Der
+Solver-Aufwand misst also im Wesentlichen die Achse „mit Logik lösbar
+oder mit Raten", während die Inselzahl die Achse „Grösse und
+Erschöpfung" abdeckt. Beide Angaben stehen deshalb nebeneinander.
 
 ### Schwierigkeitsgrade anpassen
 
@@ -307,6 +413,7 @@ hashi/
 ├── js/
 │   ├── app.js                 # Spiellogik, Verlauf, Timer, Speichern, Drucken
 │   ├── board.js               # Brettmodell: Kanten, Kreuzungen, Nachbarschaft
+│   ├── difficulty.js          # Schwierigkeitsmessung (Metriken + Normierung)
 │   ├── game.js                # Spielzustand: Brücken, Undo/Redo, Hinweise
 │   ├── generator.js           # Rätselgenerator
 │   ├── layout.js              # Seitenaufteilung des Rätselhefts
@@ -314,7 +421,11 @@ hashi/
 │   ├── svg.js                 # SVG-Renderer (Druck & Heft)
 │   ├── rng.js                 # deterministischer Zufallsgenerator (xmur3 + mulberry32)
 │   ├── solver.js              # Constraint-Solver
-│   └── booklet.js             # Logik der Heft-Erzeugung
+│   ├── booklet.js             # Logik der Heft-Erzeugung
+│   └── data/
+│       └── difficulty.js      # Referenzbereiche (npm run calibrate)
+├── scripts/
+│   └── calibrate.mjs          # erzeugt die Referenzbereiche
 ├── tests/                     # Testsuite (node:test, ohne Dependencies)
 ├── .github/workflows/pages.yml
 └── package.json

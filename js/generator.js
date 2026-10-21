@@ -27,7 +27,19 @@
 
 import { RNG, randomSeed } from './rng.js';
 import { buildBoard, isConnected } from './board.js';
-import { findSolutions, propagationStatus } from './solver.js';
+import { findSolutions, propagationStatus, Solver } from './solver.js';
+import { measure, score, relativeScore, bucketFor, label as difficultyLabel } from './difficulty.js';
+import { CALIBRATION } from './data/difficulty.js';
+
+/**
+ * Referenzbereiche der Schwierigkeitsmessung. Sie werden beim ersten
+ * Aufruf von `npm run calibrate` erzeugt – ohne sie arbeitet der Generator
+ * ebenfalls, die Messung fällt dann auf einen neutralen Wert zurück.
+ */
+const CAL = CALIBRATION && typeof CALIBRATION === 'object' ? CALIBRATION : {};
+const GLOBAL_BOUNDS = CAL.global ?? null;
+const BUCKET_BOUNDS = CAL.buckets ?? {};
+const BANDS = Array.isArray(CAL.bands) ? CAL.bands : null;
 
 export const DIFFICULTIES = {
   easy: {
@@ -37,8 +49,9 @@ export const DIFFICULTIES = {
     max: 16,
     cols: 9,
     rows: 9,
-    double: 0.22,
+    double: 0.25,
     maxExtra: 1,
+    maxLen: 4,
     tries: 60,
     maxRepair: 220,
     repairLimit: 40,
@@ -51,8 +64,9 @@ export const DIFFICULTIES = {
     max: 26,
     cols: 11,
     rows: 11,
-    double: 0.16,
+    double: 0.25,
     maxExtra: 1,
+    maxLen: 4,
     tries: 70,
     maxRepair: 140,
     repairLimit: 40,
@@ -65,8 +79,9 @@ export const DIFFICULTIES = {
     max: 38,
     cols: 12,
     rows: 12,
-    double: 0.1,
+    double: 0.22,
     maxExtra: 2,
+    maxLen: 4,
     tries: 90,
     maxRepair: 70,
     repairLimit: 32,
@@ -79,8 +94,9 @@ export const DIFFICULTIES = {
     max: 56,
     cols: 14,
     rows: 14,
-    double: 0.06,
+    double: 0.18,
     maxExtra: 2,
+    maxLen: 4,
     tries: 120,
     maxRepair: 40,
     repairLimit: 0,
@@ -92,15 +108,16 @@ export const DIFFICULTIES = {
  * Sehr grosses Format für das Rätselheft: etwa 100 Inseln auf einer
  * DIN-A6-Seite. Wird über `islands` in `generatePuzzle` angesteuert.
  *
- * Bei dieser Dichte sorgen Doppelbrücken für deutliche Mehrdeutigkeit –
- * 5 % Brückenanteil sind der Wert, bei dem die Erzeugung noch zuverlässig
- * funktioniert (gemessen: 100 % eindeutige Rätsel, ~5 s je Rätsel).
+ * Gemessen (100 Inseln, 18x18): mit variablen Brückenlängen bis 4 Felder
+ * und 12 % Doppelbrücken liefert die Erzeugung zuverlässig eindeutige
+ * Rätsel (100 % Quote, ~1 s je Rätsel, ~11 Doppelbrücken).
  */
 export const BOOKLET_FORMAT = {
   cols: 18,
   rows: 18,
   maxExtra: 2,
-  double: 0.05,
+  maxLen: 4,
+  double: 0.12,
 };
 
 export const DIFFICULTY_IDS = Object.keys(DIFFICULTIES);
@@ -213,9 +230,18 @@ function spreadFactor(islands, r, c, rows, cols) {
 
 /**
  * Baut eine zufällige, kreuzungsfreie Lösung.
+ *
+ * @param {number} maxExtra    erlaubte "Ablenk-Kanten" je Insel
+ * @param {number} maxLen      maximale Brückenlänge in Feldern (1 = nur Nachbarschaft)
+ * @param {boolean} noAdjacent keine neue Insel direkt neben einer anderen
  * @returns {{cols:number, rows:number, islands:{r:number,c:number}[], edges:{a:number,b:number,w:number}[]}|null}
+ *
+ * Die Idee der variablen Brückenlänge (Brücken über ein oder mehrere freie
+ * Felder statt immer nur über eines) stammt aus dem Projekt
+ * https://github.com/erthium/hashiwokakero (GPL-3.0). Die Umsetzung hier ist
+ * eigenständig in JavaScript; das Projekt steht unter MIT.
  */
-function growSolution(rng, target, cols, rows, doubleChance, maxExtra) {
+function growSolution(rng, target, cols, rows, doubleChance, maxExtra, maxLen = 2, noAdjacent = false) {
   const islands = [];
   const edges = [];
 
@@ -229,7 +255,7 @@ function growSolution(rng, target, cols, rows, doubleChance, maxExtra) {
   };
 
   let guard = 0;
-  while (islands.length < target && guard < 6000) {
+  while (islands.length < target && guard < 20000) {
     guard++;
     const cands = [];
     const weights = [];
@@ -237,19 +263,40 @@ function growSolution(rng, target, cols, rows, doubleChance, maxExtra) {
     for (let i = 0; i < islands.length; i++) {
       const isl = islands[i];
       for (const d of DIRS) {
-        for (const dist of [1, 2]) {
+        // Brücken können über ein oder mehrere freie Felder führen.
+        for (let dist = 1; dist <= maxLen; dist++) {
           const nr = isl.r + d.dr * dist;
           const nc = isl.c + d.dc * dist;
-          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-          if (islandAt(islands, nr, nc)) continue;
-          // Mittelfeld der Strecke muss frei sein (keine Brücke über eine Insel)
-          if (dist === 2) {
-            const mr = isl.r + d.dr;
-            const mc = isl.c + d.dc;
-            if (islandAt(islands, mr, mc)) continue;
+          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) break;
+
+          // Alle Felder zwischen Elterninsel und neuer Insel müssen frei sein –
+          // weder Insel noch Brücke.
+          let blocked = false;
+          for (let k = 1; k < dist; k++) {
+            const kr = isl.r + d.dr * k;
+            const kc = isl.c + d.dc * k;
+            if (islandAt(islands, kr, kc) || liesOnBridge(islands, edges, kr, kc)) {
+              blocked = true;
+              break;
+            }
           }
-          if (liesOnBridge(islands, edges, nr, nc)) continue;
+          if (blocked) break;
+          if (islandAt(islands, nr, nc)) break;
+          // Durch die neue Insel darf keine bestehende Brücke laufen
+          if (liesOnBridge(islands, edges, nr, nc)) break;
+          // Die neue Brücke darf keine bestehende kreuzen
           if (crossesExisting(islands, edges, isl.r, isl.c, nr, nc)) continue;
+          // Regel: keine neue Insel direkt neben einer anderen platzieren
+          if (noAdjacent) {
+            let adjacent = false;
+            for (const dd of DIRS) {
+              if (islandAt(islands, nr + dd.dr, nc + dd.dc)) {
+                adjacent = true;
+                break;
+              }
+            }
+            if (adjacent) continue;
+          }
 
           const candidateIslands = [...islands, { r: nr, c: nc }];
           const deg = visibleDegree(candidateIslands, nr, nc, rows, cols);
@@ -260,13 +307,14 @@ function growSolution(rng, target, cols, rows, doubleChance, maxExtra) {
           if (extra > maxExtra) continue;
 
           // Ausbreitung fördern: Positionen, die vom Schwerpunkt der bisherigen
-          // Inseln weiter entfernt sind, werden bevorzugt. So verteilen sich
+          // Inseln weiter entfernt liegt, werden bevorzugt. So verteilen sich
           // die Inseln gleichmässig über das Brett statt in einem Klumpen.
           const spread = spreadFactor(islands, nr, nc, rows, cols);
 
           let w = 1;
           if (degreeOf(i) <= 1) w *= 2.2; // Ketten weiterbauen -> organischere Form
           if (extra === 0) w *= 2.5; // decoy-frei bevorzugen
+          if (dist > 1) w *= 1.3; // längere Brücken sind typischer für Hashi
           if (deg >= 4) w *= 0.05;
           else if (deg === 3) w *= 0.4;
           w *= spread;
@@ -804,7 +852,16 @@ export function generatePuzzle({
 
   for (let attempt = 0; attempt < tries; attempt++) {
     const target = rng.range(minIslands, maxIslands);
-    const sol = growSolution(rng, target, fmt.cols, fmt.rows, fmt.double, fmt.maxExtra);
+    const sol = growSolution(
+      rng,
+      target,
+      fmt.cols,
+      fmt.rows,
+      fmt.double,
+      fmt.maxExtra,
+      fmt.maxLen ?? 2,
+      fmt.noAdjacent ?? false,
+    );
     if (!sol) continue;
     if (!validateSolution(sol)) continue;
 
@@ -823,28 +880,38 @@ export function generatePuzzle({
     const board = boardOf(current, numbersOf(current));
     const counts = countsOf(board, current);
 
-    // Endgültige Härteprüfung: es darf genau eine Lösung geben
-    const solutions = findSolutions(board, 2);
+    // Endgültige Härteprüfung: es darf genau eine Lösung geben.
+    // Der Solver misst dabei zugleich den Aufwand, der für die
+    // Schwierigkeitsbewertung gebraucht wird.
+    const solver = new Solver(board);
+    const solutions = solver.findSolutions(2);
     if (solutions.length !== 1) continue;
     if (!sameArray(solutions[0], counts)) continue;
 
-    const score = qualityScore(board, counts);
+    // Schwierigkeitsgrad messen (0 = leicht, 1 = schwer).
+    // Normiert wird gegen die globalen Referenzbereiche, damit die Werte
+    // zwischen verschiedenen Brettgrössen vergleichbar sind.
+    const metrics = measure(board, solver, solver.ruleSteps);
+    const difficulty = score(metrics, GLOBAL_BOUNDS);
+    const relative = relativeScore(metrics, BUCKET_BOUNDS[bucketFor(board.islands.length)]);
+
+    const scoreValue = qualityScore(board, counts);
     valid++;
-    if (score > bestScore) {
-      bestScore = score;
-      best = { board, counts };
+    if (scoreValue > bestScore) {
+      bestScore = scoreValue;
+      best = { board, counts, difficulty, relative };
     }
     if (valid >= keepCount) break;
   }
 
   if (!best) {
     // Notfall: kleineres, leichter eindeutig lösbares Rätsel
-    const fallback = growSolution(rng, 12, 9, 9, 0.1, 1);
+    const fallback = growSolution(rng, 12, 9, 9, 0.1, 1, fmt.maxLen ?? 3);
     if (!fallback) throw new Error('Rätselgenerierung fehlgeschlagen');
     const fixed = repair(fallback, rng, 300);
     const sol = fixed ?? fallback;
     const board = boardOf(sol, numbersOf(sol));
-    best = { board, counts: countsOf(board, sol) };
+    best = { board, counts: countsOf(board, sol), difficulty: 0.2 };
     bestScore = qualityScore(board, best.counts);
   }
 
@@ -859,5 +926,11 @@ export function generatePuzzle({
     solution: best.counts.slice(),
     doubles: best.counts.filter((c) => c === 2).length,
     score: Number(bestScore.toFixed(2)),
+    // Gemessener Schwierigkeitsgrad: 0 = sehr leicht, 1 = sehr schwer.
+    // Getrennt von `difficulty` (der Stufen-Kennung) benannt.
+    difficultyScore: Number(best.difficulty.toFixed(3)),
+    difficultyText: difficultyLabel(best.difficulty, BANDS),
+    // Einordnung innerhalb gleich grosser Rätsel.
+    difficultyRelative: Number((best.relative ?? 0.5).toFixed(3)),
   };
 }
