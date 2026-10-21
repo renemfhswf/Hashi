@@ -412,6 +412,9 @@ let press = null;
 
 function onPointerDown(event) {
   if (!state.board) return;
+  // Native Handlungen unterbinden: sonst markiert der Browser auf dem
+  // Smartphone beim Tippen den Text bzw. blendet das Kontextmenü ein.
+  if (event.cancelable) event.preventDefault();
   const point = canvasPoint(event);
   const hit = renderer.hitTest(point.x, point.y);
   if (!hit) {
@@ -419,8 +422,14 @@ function onPointerDown(event) {
     render();
     return;
   }
-  ui.canvas.setPointerCapture?.(event.pointerId);
+  // Zustand zuerst setzen: würde setPointerCapture fehlschlagen, darf die
+  // Eingabe nicht abbrechen (das passiert auf manchen Mobilgeräten).
   press = { hit, startX: event.clientX, startY: event.clientY, moved: false };
+  try {
+    ui.canvas.setPointerCapture(event.pointerId);
+  } catch {
+    // Zeiger nicht einfangen – die Bedienung funktioniert auch so.
+  }
   if (hit.type === 'island') {
     state.selected = state.selected === hit.island.id ? null : hit.island.id;
     render();
