@@ -110,21 +110,6 @@
   break-inside: avoid;
 }
 
-.mini__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 3mm;
-  font-size: 7pt;
-  line-height: 1;
-  margin-bottom: 1.5mm;
-}
-
-.mini__no {
-  font-weight: 700;
-  font-size: 9pt;
-}
-
 .mini__board {
   flex: 1;
   min-height: 0;
@@ -176,8 +161,41 @@
   flex: none;
 }
 
+/* Leerzustand, solange noch kein Heft erzeugt wurde. */
+.empty {
+  width: 105mm;
+  min-height: 148mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20mm;
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.empty__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.empty__text {
+  margin: 0;
+  font-size: 13px;
+  max-width: 30em;
+}
+
 /* ----------------------------------------------------------------- Druck */
 
+/* Wichtig: Diese Datei wird nach styles.css geladen. Die @page-Regel für
+   DIN A6 muss damit nach der A4-Regel aus styles.css kommen, sonst
+   gewinnt das Spiel-Format. */
 @media print {
   @page {
     size: A6 portrait;
@@ -187,6 +205,15 @@
   html,
   body {
     background: #fff !important;
+  }
+
+  .app {
+    display: block !important;
+    max-width: none;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    gap: 0;
   }
 
   .booklet__controls,

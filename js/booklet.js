@@ -91,13 +91,6 @@ function miniPuzzle(puzzle, index, { solution = false, layout = 'row', count = 1
   const article = document.createElement('article');
   article.className = 'mini';
 
-  const head = document.createElement('header');
-  head.className = 'mini__head';
-  const no = document.createElement('span');
-  no.className = 'mini__no';
-  no.textContent = solution ? 'L' : String(index + 1);
-  head.appendChild(no);
-
   const cellMm = cellSizeMm(puzzle, layout, count);
   const widthMm = (puzzle.cols + 2 * SVG_VIEW_PAD) * cellMm;
   const heightMm = (puzzle.rows + 2 * SVG_VIEW_PAD) * cellMm;
@@ -115,23 +108,24 @@ function miniPuzzle(puzzle, index, { solution = false, layout = 'row', count = 1
   svg.style.height = `${heightMm.toFixed(2)}mm`;
   board.appendChild(svg);
 
-  // Schwierigkeitsgrad und Seed stehen unter dem Rätsel
+  // Unter dem Rätsel stehen Nummer, Schwierigkeitsgrad und Seed.
+  // Bewusst keine Kopfzeile: dort stünde eine Seitenzahl, die irritiert.
   const foot = document.createElement('footer');
   foot.className = 'mini__foot';
   const label = document.createElement('span');
   label.className = 'mini__level';
-  label.textContent = puzzle.difficultyLabel;
+  label.textContent = `${index + 1} · ${solution ? 'Lösung' : puzzle.difficultyLabel}`;
   const seed = document.createElement('span');
   seed.className = 'mini__seed';
   seed.textContent = puzzle.seed;
   foot.append(label, seed);
 
-  article.append(head, board, foot);
+  article.append(board, foot);
   return article;
 }
 
 /** Erzeugt einen Druckbogen (A6) mit den übergebenen Rätseln. */
-function buildSheet(puzzles, { solution = false } = {}) {
+function buildSheet(puzzles, { solution = false, firstIndex = 0 } = {}) {
   const section = document.createElement('section');
   section.className = 'sheet';
 
@@ -143,7 +137,7 @@ function buildSheet(puzzles, { solution = false } = {}) {
 
   puzzles.forEach((puzzle, i) => {
     grid.appendChild(
-      miniPuzzle(puzzle, i, { solution, layout, count: puzzles.length }),
+      miniPuzzle(puzzle, firstIndex + i, { solution, layout, count: puzzles.length }),
     );
   });
 
@@ -154,11 +148,21 @@ function buildSheet(puzzles, { solution = false } = {}) {
 function render() {
   const puzzles = state.puzzles;
   const pages = groupIntoPages(puzzles, state.perPage);
-  const sheets = pages.map((page) => buildSheet(page));
+  const sheets = [];
+
+  // Die Nummerierung läuft durchlaufend über das ganze Heft – unabhängig
+  // davon, wie viele Rätsel auf einer Seite stehen.
+  let puzzleIndex = 0;
+  for (const page of pages) {
+    sheets.push(buildSheet(page, { firstIndex: puzzleIndex }));
+    puzzleIndex += page.length;
+  }
 
   if (state.withSolutions) {
+    puzzleIndex = 0;
     for (const page of pages) {
-      sheets.push(buildSheet(page, { solution: true }));
+      sheets.push(buildSheet(page, { solution: true, firstIndex: puzzleIndex }));
+      puzzleIndex += page.length;
     }
   }
 
@@ -170,6 +174,7 @@ function render() {
     .map((id) => DIFFICULTIES[id].label)
     .join(' / ');
 
+  ui.info.dataset.dirty = '';
   ui.info.textContent =
     `${puzzles.length} Rätsel · ${puzzles[0]?.islands.length ?? state.islands} Inseln · ${levels} · ` +
     `${pages.length} Seiten` +
@@ -303,15 +308,24 @@ function buildDifficultyButtons() {
     button.textContent = cfg.label;
     button.setAttribute('aria-pressed', 'false');
     button.addEventListener('click', () => {
-      // Mehrfachauswahl: der gewählte Grad wird umgeschaltet
+      // Mehrfachauswahl: der gewählte Grad wird umgeschaltet.
+      // Es wird bewusst NICHT neu erzeugt – erst der Knopf "Heft erzeugen".
       const index = state.difficulties.indexOf(id);
       if (index === -1) state.difficulties.push(id);
       else state.difficulties.splice(index, 1);
       syncGroups();
-      generate();
+      markDirty();
     });
     ui.difficulty.appendChild(button);
   }
+}
+
+/** Merkt vor, dass die aktuelle Vorschau zu den Einstellungen veraltet ist. */
+function markDirty() {
+  if (!state.puzzles.length) return;
+  ui.info.textContent =
+    'Einstellungen geändert – bitte "Heft erzeugen" klicken, um sie anzuwenden.';
+  ui.info.dataset.dirty = 'true';
 }
 
 function setupEvents() {
@@ -319,7 +333,8 @@ function setupEvents() {
     button.addEventListener('click', () => {
       state.perPage = Number(button.dataset.per);
       syncGroups();
-      render();
+      // Nur die vorhandenen Rätsel neu anordnen, nicht neu erzeugen.
+      if (state.puzzles.length) render();
       updateHash();
     });
   }
@@ -329,7 +344,7 @@ function setupEvents() {
       state.count = Number(button.dataset.count);
       ui.countInput.value = String(state.count);
       syncGroups();
-      generate();
+      markDirty();
     });
   }
 
@@ -337,7 +352,7 @@ function setupEvents() {
     button.addEventListener('click', () => {
       state.islands = Number(button.dataset.islands);
       syncGroups();
-      generate();
+      markDirty();
     });
   }
 
@@ -346,12 +361,12 @@ function setupEvents() {
     state.count = Math.min(MAX_PUZZLES, Math.max(1, Number.isFinite(value) ? value : 1));
     ui.countInput.value = String(state.count);
     syncGroups();
-    generate();
+    markDirty();
   });
 
   ui.withSolutions.addEventListener('change', () => {
     state.withSolutions = ui.withSolutions.checked;
-    render();
+    if (state.puzzles.length) render();
     updateHash();
   });
 
@@ -359,7 +374,7 @@ function setupEvents() {
     const value = ui.seedInput.value.trim();
     if (!value) return;
     state.seed = value;
-    generate();
+    markDirty();
   });
 
   ui.generateBtn.addEventListener('click', generate);
@@ -389,7 +404,23 @@ function boot() {
 
   setupEvents();
   syncGroups();
-  generate();
+
+  // Es wird bewusst nichts erzeugt: das Heft entsteht erst auf Klick
+  // auf "Heft erzeugen".
+  showEmptyState();
+}
+
+/** Platzhalter, solange noch kein Heft erzeugt wurde. */
+function showEmptyState() {
+  const box = document.createElement('div');
+  box.className = 'empty';
+  box.innerHTML =
+    '<p class="empty__title">Noch kein Heft erzeugt</p>' +
+    '<p class="empty__text">Einstellungen wählen und auf <strong>„Heft erzeugen"</strong> klicken. ' +
+    `Bei ${state.islands} Inseln pro Rätsel dauert das einige Minuten.</p>`;
+  ui.sheets.replaceChildren(box);
+  ui.info.textContent = 'Bereit – bitte „Heft erzeugen" klicken.';
+  ui.info.dataset.dirty = '';
 }
 
 boot();

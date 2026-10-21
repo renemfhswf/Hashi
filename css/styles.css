@@ -750,7 +750,9 @@ kbd {
     background: #fff !important;
   }
 
-  .app {
+  /* Nur die Spieloberfläche wird ausgeblendet. Das Rätselheft nutzt ebenfalls
+     die Klasse ".app" und darf deshalb nicht mitverschwinden. */
+  .app--game {
     display: none !important;
   }
 

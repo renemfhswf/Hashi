@@ -61,6 +61,10 @@ Kopie des Rätsels.
 
 Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
 
+* **Erzeugung auf Knopfdruck**: Beim Aufruf der Seite wird **nichts**
+  erzeugt. Erst der Knopf *„Heft erzeugen"* startet die Erzeugung; alle
+  anderen Schalter verändern nur die Einstellungen. Die Vorschau meldet,
+  wenn die Einstellungen veraltet sind.
 * **1 oder 2 Rätsel pro Seite** – nie mehr als zwei, damit die Zahlen
   lesbar bleiben.
 * **Automatische Anpassung**: sind die Raster zu gross, wird automatisch nur
@@ -79,11 +83,19 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
   Inseln, Zahlen und Brücken sind dadurch auf **jeder Seite gleich gross** –
   unabhängig von der Grösse des Rasters.
 * **Seed**: gleicher Seed ⇒ gleiches Heft, per Link teilbar.
-* Der **Schwierigkeitsgrad** steht bei jedem Rätsel **darunter**.
+* Unter jedem Rätsel stehen **Nummer, Schwierigkeitsgrad und Seed**. Die
+  Nummer läuft durchlaufend über das ganze Heft (1, 2, 3 …) und passt zur
+  gleich nummerierten Lösungsseite.
 
 Beim Drucken bitte im Druckdialog **DIN A6** und **100 % Skalierung** wählen
 (das Seitenformat steckt bereits im CSS, manche Browser übernehmen es aber
 nicht).
+
+> **Hinweis zur Reihenfolge der Stylesheets:** `booklet.css` wird nach
+> `styles.css` geladen. Nur so gewinnt die `@page`-Regel für DIN A6 gegen die
+> A4-Regel des Spiels. Die Druckregel des Spiels ist zusätzlich auf
+> `.app--game` eingegrenzt, damit das Heft (gleiche Grundklasse `.app`)
+> beim Drucken nicht verschwindet.
 
 Die Aufteilung rechnet das Modul [`js/layout.js`](js/layout.js) aus – es
 prüft für jedes Rätsel, wie gross eine Rasterzelle in Millimetern würde, und
