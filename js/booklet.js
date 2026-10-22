@@ -141,7 +141,7 @@ function miniPuzzle(puzzle, index, { solution = false, layout = 'row', count = 1
     fontSize: cellMm * 0.5,
     bridgeWidth: cellMm * 0.08,
     bridgeOffset: cellMm * 0.09,
-    islandStroke: cellMm * 0.045,
+    islandStrokeWidth: cellMm * 0.05,
     gridWidth: cellMm * 0.022,
     gridDash: `${(cellMm * 0.05).toFixed(3)} ${(cellMm * 0.22).toFixed(3)}`,
     frameWidth: cellMm * 0.04,

@@ -75,6 +75,43 @@ describe('SVG-Renderer', () => {
     delete globalThis.document;
   });
 
+  test('Kreise haben einen sichtbaren Rand (Farbe und Breite getrennt)', async () => {
+    const dom = createFakeDom();
+    globalThis.document = dom;
+    const { boardToSvgElement, SVG_DEFAULTS } = await import('../js/svg.js');
+
+    const board = buildBoard(
+      [
+        { id: 0, r: 0, c: 0, num: 1 },
+        { id: 1, r: 0, c: 2, num: 2 },
+      ],
+      3,
+      3,
+    );
+    const circleOf = (svg) =>
+      svg.children
+        .find((g) => g.children.some((c) => c.tagName === 'circle'))
+        .children.filter((c) => c.tagName === 'circle')[0];
+
+    // Standard: schwarzer Rand mit Standardbreite
+    const plain = circleOf(boardToSvgElement(board));
+    assert.equal(plain.getAttribute('stroke'), SVG_DEFAULTS.islandStroke);
+    assert.equal(plain.getAttribute('stroke-width'), String(SVG_DEFAULTS.islandStrokeWidth));
+
+    // Eigene Breite darf die Farbe nicht überschreiben (Regression: im Heft
+    // wurde die Farbe mit einer Zahl überschrieben, der Rand verschwand).
+    const custom = circleOf(boardToSvgElement(board, { islandStrokeWidth: 0.12 }));
+    assert.equal(custom.getAttribute('stroke'), SVG_DEFAULTS.islandStroke);
+    assert.equal(custom.getAttribute('stroke-width'), '0.12');
+
+    // Auch eine Zahl in `islandStroke` darf den Rand nicht unsichtbar machen
+    const legacy = circleOf(boardToSvgElement(board, { islandStroke: 0.2 }));
+    assert.equal(legacy.getAttribute('stroke'), SVG_DEFAULTS.islandStroke);
+    assert.equal(legacy.getAttribute('stroke-width'), String(SVG_DEFAULTS.islandStrokeWidth));
+
+    delete globalThis.document;
+  });
+
   test('zeichnet keine Brücken, wenn keine übergeben werden', async () => {
     const dom = createFakeDom();
     globalThis.document = dom;

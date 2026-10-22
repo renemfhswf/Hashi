@@ -29,7 +29,7 @@ export const MM = {
   gridWidth: 0.11,
   gridDash: '0.1 0.45',
   frameWidth: 0.25,
-  islandStroke: 0.16,
+  islandStrokeWidth: 0.16,
 };
 
 export const SVG_DEFAULTS = {
@@ -38,6 +38,7 @@ export const SVG_DEFAULTS = {
   markComplete: true,
   islandFill: '#ffffff',
   islandStroke: '#111111',
+  islandStrokeWidth: 0.045,
   islandText: '#000000',
   bridgeColor: '#1f2937',
   gridColor: '#1f2937',
@@ -77,7 +78,14 @@ export function boardToSvgElement(board, options = {}) {
   const fontSize = mm ? (o.fontSize ?? MM.fontSize) : o.fontSize;
   const bridgeWidth = mm ? (o.bridgeWidth ?? MM.bridgeWidth) : o.bridgeWidth;
   const bridgeOffset = mm ? (o.bridgeOffset ?? MM.bridgeOffset) : o.bridgeOffset;
-  const islandStroke = mm ? (o.islandStroke ?? MM.islandStroke) : 0.045;
+  // Strichfarbe und -breite sind getrennte Optionen: die Farbe steht in
+  // `islandStroke`, die Breite in `islandStrokeWidth`.
+  const islandStrokeWidth = o.islandStrokeWidth ?? SVG_DEFAULTS.islandStrokeWidth;
+  // Absicherung: eine Zahl in `islandStroke` wäre eine Breite, als Farbe
+  // ist sie ungültig – dann würde der Rand unsichtbar verschwinden.
+  const islandStroke = typeof o.islandStroke === 'number'
+    ? SVG_DEFAULTS.islandStroke
+    : o.islandStroke;
   const gridWidth = mm ? (o.gridWidth ?? MM.gridWidth) : 0.022;
   const gridDash = mm ? (o.gridDash ?? MM.gridDash) : '0.05 0.22';
   const frameWidth = mm ? (o.frameWidth ?? MM.frameWidth) : 0.04;
@@ -199,8 +207,8 @@ export function boardToSvgElement(board, options = {}) {
     circle.setAttribute('cy', String(cy));
     circle.setAttribute('r', String(islandRadius));
     circle.setAttribute('fill', o.islandFill);
-    circle.setAttribute('stroke', o.islandStroke);
-    circle.setAttribute('stroke-width', String(islandStroke));
+    circle.setAttribute('stroke', islandStroke);
+    circle.setAttribute('stroke-width', String(islandStrokeWidth));
     nodes.appendChild(circle);
 
     if (complete) {
@@ -210,8 +218,8 @@ export function boardToSvgElement(board, options = {}) {
       strike.setAttribute('y1', String(round(cy + d)));
       strike.setAttribute('x2', String(round(cx + d)));
       strike.setAttribute('y2', String(round(cy - d)));
-      strike.setAttribute('stroke', o.islandStroke);
-      strike.setAttribute('stroke-width', String(islandStroke));
+      strike.setAttribute('stroke', islandStroke);
+      strike.setAttribute('stroke-width', String(islandStrokeWidth));
       strike.setAttribute('stroke-linecap', 'round');
       nodes.appendChild(strike);
     }
