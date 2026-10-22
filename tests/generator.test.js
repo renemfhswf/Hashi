@@ -234,7 +234,10 @@ describe('generatePuzzle – Brückenlängen', () => {
       });
     }
     assert.ok(lengths.size >= 3, `nur ${lengths.size} verschiedene Brückenlängen`);
-    assert.ok(lengths.has(1), 'Brücken über ein Feld sollten vorkommen');
+    // Weil keine zwei Knoten direkt nebeneinander liegen, kann es keine
+    // Brücke über ein einziges Feld geben.
+    assert.ok(!lengths.has(1), 'Brücken über ein Feld sollten nicht vorkommen');
+    assert.ok(lengths.has(2), 'Brücken über zwei Felder sollten vorkommen');
   });
 
   test('lange Brücken werden unterstützt', () => {
@@ -245,7 +248,7 @@ describe('generatePuzzle – Brückenlängen', () => {
       const b = puzzle.islands[edge.b];
       maxLen = Math.max(maxLen, Math.abs(a.r - b.r) + Math.abs(a.c - b.c));
     }
-    assert.ok(maxLen >= 2, `längste Brücke nur ${maxLen} Felder`);
+    assert.ok(maxLen >= 3, `längste Brücke nur ${maxLen} Felder`);
   });
 
   test('zwischen den Brückenenden liegen keine Inseln', () => {
@@ -270,6 +273,71 @@ describe('generatePuzzle – Brückenlängen', () => {
         }
       }
     });
+  });
+});
+
+describe('generatePuzzle – Anordnung der Knoten', () => {
+  test('keine zwei Knoten liegen unmittelbar nebeneinander', () => {
+    // Die vier Nachbarfelder eines Knotens bleiben immer frei.
+    for (const difficulty of DIFFICULTY_IDS) {
+      for (const seed of SEEDS) {
+        const puzzle = generatePuzzle({ difficulty, seed });
+        for (let i = 0; i < puzzle.islands.length; i++) {
+          for (let j = i + 1; j < puzzle.islands.length; j++) {
+            const a = puzzle.islands[i];
+            const b = puzzle.islands[j];
+            const dist = Math.abs(a.r - b.r) + Math.abs(a.c - b.c);
+            assert.notEqual(
+              dist,
+              1,
+              `${difficulty}/${seed}: Knoten (${a.r},${a.c}) und (${b.r},${b.c}) liegen direkt nebeneinander`,
+            );
+          }
+        }
+      }
+    }
+  });
+
+  test('die Inseln sind gleichmässig verteilt', () => {
+    // Der mittlere Abstand zur nächstgelegenen Insel muss deutlich über 1
+    // liegen, sonst kleben die Knoten zusammen.
+    for (const seed of SEEDS) {
+      const puzzle = generatePuzzle({ difficulty: 'hard', seed });
+      const islands = puzzle.islands;
+      let sum = 0;
+      for (let i = 0; i < islands.length; i++) {
+        let best = Infinity;
+        for (let j = 0; j < islands.length; j++) {
+          if (i === j) continue;
+          const d = Math.abs(islands[i].r - islands[j].r) + Math.abs(islands[i].c - islands[j].c);
+          if (d < best) best = d;
+        }
+        sum += best;
+      }
+      const avg = sum / islands.length;
+      assert.ok(avg >= 2, `mittlerer Abstand nur ${avg.toFixed(2)} (${seed})`);
+    }
+  });
+
+  test('das Heft-Format hält die Nachbar-Regel ebenfalls ein', () => {
+    const puzzle = generatePuzzle({
+      difficulty: 'medium',
+      seed: 'HEFT-ANORDNUNG',
+      islands: 100,
+      format: BOOKLET_FORMAT,
+      keep: 1,
+    });
+    for (let i = 0; i < puzzle.islands.length; i++) {
+      for (let j = i + 1; j < puzzle.islands.length; j++) {
+        const a = puzzle.islands[i];
+        const b = puzzle.islands[j];
+        assert.notEqual(
+          Math.abs(a.r - b.r) + Math.abs(a.c - b.c),
+          1,
+          `Knoten (${a.r},${a.c}) und (${b.r},${b.c}) liegen direkt nebeneinander`,
+        );
+      }
+    }
   });
 });
 
@@ -315,8 +383,10 @@ describe('generatePuzzle – Heft-Format (DIN A6)', () => {
       format: BOOKLET_FORMAT,
       keep: 1,
     });
-    // Das Raster muss so kompakt sein, dass die Inseln auf A6 passen
-    assert.ok(puzzle.cols <= 20 && puzzle.rows <= 20, 'Raster zu gross für A6');
+    // Auf einer A6-Seite bleiben 93 x 136 mm nutzbar. Die Rasterzelle
+    // muss gross genug bleiben, damit die Inseln (3 mm) noch passen.
+    const cellMm = Math.min(93 / (puzzle.cols + 0.24), 136 / (puzzle.rows + 0.24));
+    assert.ok(cellMm >= 4, `Rasterzelle nur ${cellMm.toFixed(1)} mm`);
   });
 });
 

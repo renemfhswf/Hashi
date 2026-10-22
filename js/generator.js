@@ -47,11 +47,12 @@ export const DIFFICULTIES = {
     label: 'Leicht',
     min: 12,
     max: 16,
-    cols: 9,
-    rows: 9,
+    cols: 11,
+    rows: 11,
     double: 0.25,
     maxExtra: 1,
     maxLen: 4,
+    noAdjacent: true,
     tries: 60,
     maxRepair: 220,
     repairLimit: 40,
@@ -62,11 +63,12 @@ export const DIFFICULTIES = {
     label: 'Mittel',
     min: 20,
     max: 26,
-    cols: 11,
-    rows: 11,
+    cols: 13,
+    rows: 13,
     double: 0.25,
     maxExtra: 1,
     maxLen: 4,
+    noAdjacent: true,
     tries: 70,
     maxRepair: 140,
     repairLimit: 40,
@@ -77,11 +79,12 @@ export const DIFFICULTIES = {
     label: 'Schwer',
     min: 30,
     max: 38,
-    cols: 12,
-    rows: 12,
+    cols: 16,
+    rows: 16,
     double: 0.22,
     maxExtra: 2,
     maxLen: 4,
+    noAdjacent: true,
     tries: 90,
     maxRepair: 70,
     repairLimit: 32,
@@ -92,11 +95,12 @@ export const DIFFICULTIES = {
     label: 'Experte',
     min: 44,
     max: 56,
-    cols: 14,
-    rows: 14,
+    cols: 19,
+    rows: 17,
     double: 0.18,
     maxExtra: 2,
     maxLen: 4,
+    noAdjacent: true,
     tries: 120,
     maxRepair: 40,
     repairLimit: 0,
@@ -108,15 +112,16 @@ export const DIFFICULTIES = {
  * Sehr grosses Format für das Rätselheft: etwa 100 Inseln auf einer
  * DIN-A6-Seite. Wird über `islands` in `generatePuzzle` angesteuert.
  *
- * Gemessen (100 Inseln, 18x18): mit variablen Brückenlängen bis 4 Felder
+ * Gemessen (100 Inseln, 23x21): mit variablen Brückenlängen bis 4 Felder
  * und 12 % Doppelbrücken liefert die Erzeugung zuverlässig eindeutige
  * Rätsel (100 % Quote, ~1 s je Rätsel, ~11 Doppelbrücken).
  */
 export const BOOKLET_FORMAT = {
-  cols: 18,
-  rows: 18,
+  cols: 23,
+  rows: 21,
   maxExtra: 2,
   maxLen: 4,
+  noAdjacent: true,
   double: 0.12,
 };
 
@@ -207,25 +212,24 @@ function crossesExisting(islands, edges, r1, c1, r2, c2) {
 }
 
 /**
- * Faktor, der Positionen nahe am Rand des belegten Bereichs bevorzugt.
- * Der Schwerpunkt der bereits gesetzten Inseln dient als Bezugspunkt;
- * je weiter eine neue Insel vom Schwerpunkt entfernt liegt, desto höher
- * der Faktor. Das verhindert, dass alle Inseln in einem Klumpen landen.
+ * Anzahl Kandidaten, die beim Best-Candidate-Sampling erprobt werden.
+ * Höhere Werte verteilen die Inseln gleichmässiger, kosten aber Zeit.
  */
-function spreadFactor(islands, r, c, rows, cols) {
-  if (islands.length < 3) return 1;
-  let sr = 0;
-  let sc = 0;
-  for (const i of islands) {
-    sr += i.r;
-    sc += i.c;
+const CANDIDATE_SAMPLES = 12;
+
+/**
+ * Abstand der Position (r, c) zur nächstgelegenen anderen Insel
+ * (Manhattan-Metrik). Der Elternteil wird ignoriert – er soll die Insel
+ * ja gerade verbinden.
+ */
+function nearestDistance(islands, r, c, ignoreIndex) {
+  let best = Infinity;
+  for (let i = 0; i < islands.length; i++) {
+    if (i === ignoreIndex) continue;
+    const d = Math.abs(islands[i].r - r) + Math.abs(islands[i].c - c);
+    if (d < best) best = d;
   }
-  const cr = sr / islands.length;
-  const cc = sc / islands.length;
-  const diag = Math.hypot(rows, cols) / 2;
-  const dist = Math.hypot(r - cr, c - cc) / diag;
-  // 0.6 .. 1.8
-  return 0.6 + Math.min(1.2, dist * 1.6);
+  return best === Infinity ? 99 : best;
 }
 
 /**
@@ -258,7 +262,6 @@ function growSolution(rng, target, cols, rows, doubleChance, maxExtra, maxLen = 
   while (islands.length < target && guard < 20000) {
     guard++;
     const cands = [];
-    const weights = [];
 
     for (let i = 0; i < islands.length; i++) {
       const isl = islands[i];
@@ -286,7 +289,8 @@ function growSolution(rng, target, cols, rows, doubleChance, maxExtra, maxLen = 
           if (liesOnBridge(islands, edges, nr, nc)) break;
           // Die neue Brücke darf keine bestehende kreuzen
           if (crossesExisting(islands, edges, isl.r, isl.c, nr, nc)) continue;
-          // Regel: keine neue Insel direkt neben einer anderen platzieren
+          // Regel: die vier Nachbarfelder einer Insel bleiben frei – so
+          // stehen die Knoten nie direkt nebeneinander.
           if (noAdjacent) {
             let adjacent = false;
             for (const dd of DIRS) {
@@ -306,27 +310,46 @@ function growSolution(rng, target, cols, rows, doubleChance, maxExtra, maxLen = 
           const extra = deg - 1;
           if (extra > maxExtra) continue;
 
-          // Ausbreitung fördern: Positionen, die vom Schwerpunkt der bisherigen
-          // Inseln weiter entfernt liegt, werden bevorzugt. So verteilen sich
-          // die Inseln gleichmässig über das Brett statt in einem Klumpen.
-          const spread = spreadFactor(islands, nr, nc, rows, cols);
-
           let w = 1;
           if (degreeOf(i) <= 1) w *= 2.2; // Ketten weiterbauen -> organischere Form
           if (extra === 0) w *= 2.5; // decoy-frei bevorzugen
           if (dist > 1) w *= 1.3; // längere Brücken sind typischer für Hashi
           if (deg >= 4) w *= 0.05;
           else if (deg === 3) w *= 0.4;
-          w *= spread;
 
-          cands.push({ parent: i, r: nr, c: nc });
-          weights.push(w);
+          cands.push({
+            parent: i,
+            r: nr,
+            c: nc,
+            w,
+            // Abstand zur nächstgelegenen anderen Insel: je grösser, desto
+            // gleichmässiger verteilen sich die Inseln.
+            abstand: nearestDistance(islands, nr, nc, i),
+          });
         }
       }
     }
 
     if (cands.length === 0) break;
-    const chosen = rng.pickWeighted(cands, weights);
+
+    // Best-Candidate-Sampling: mehrere Kandidaten erproben und jenen wählen,
+    // der am weitesten von den übrigen Inseln entfernt liegt. Das streut die
+    // Inseln gleichmässig über das Brett statt sie zu clustern.
+    let chosen = rng.pickWeighted(cands, cands.map((c) => c.w));
+    if (cands.length > 1) {
+      let best = chosen;
+      let bestScore = chosen.abstand * 10 + rng.float() * 3 + chosen.w;
+      for (let k = 0; k < CANDIDATE_SAMPLES; k++) {
+        const pick = rng.pickWeighted(cands, cands.map((c) => c.w));
+        const score = pick.abstand * 10 + rng.float() * 3 + pick.w;
+        if (score > bestScore) {
+          bestScore = score;
+          best = pick;
+        }
+      }
+      chosen = best;
+    }
+
     const id = islands.length;
     islands.push({ r: chosen.r, c: chosen.c });
     edges.push({ a: chosen.parent, b: id, w: rng.chance(doubleChance) ? 2 : 1 });

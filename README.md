@@ -215,11 +215,11 @@ Aktueller Stand: **132 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 m
 
 | Grad | Inseln | Raster | Doppelbrücken | Zeit je Rätsel |
 |---|---|---|---|---|
-| Leicht | 12 – 16 | 9 × 9 | ~5 | 30 ms |
-| Mittel | 20 – 26 | 11 × 11 | ~8 | 80 ms |
-| Schwer | 30 – 38 | 12 × 12 | ~9 | 100 ms |
-| Experte | 44 – 56 | 14 × 14 | ~9 | 140 ms |
-| Rätselheft (DIN A6) | 40 / 60 / 80 / **100** | 18 × 18 | ~11 | ~1 s |
+| Leicht | 12 – 16 | 11 × 11 | ~5 | 14 ms |
+| Mittel | 20 – 26 | 13 × 13 | ~8 | 20 ms |
+| Schwer | 30 – 38 | 16 × 16 | ~9 | 24 ms |
+| Experte | 44 – 56 | 19 × 17 | ~9 | 67 ms |
+| Rätselheft (DIN A6) | 40 / 60 / 80 / **100** | 23 × 21 | ~11 | ~0,3 s |
 
 ---
 
@@ -296,6 +296,42 @@ Ebenfalls nicht übernommen: die dortige Generator-Routine prüft die
 Eindeutigkeit gar nicht („there may not be only 1 solution" steht so im
 README des Projekts). Diese Lücke schließt der hier verwendete Ansatz
 durch die Verifikation mit dem Solver.
+
+### Anordnung der Knoten
+
+Zwei Regeln sorgen für ein luftiges, gleichmässiges Brett:
+
+1. **Keine zwei Knoten auf benachbarten Hilfslinien-Ecken.** Die vier
+   Nachbarfelder eines Knotens bleiben immer frei – zwei Inseln stehen also
+   nie direkt nebeneinander. Damit ist das Raster zugleich die unterste
+   Grenze der Islandsymmetrie.
+2. **Best-Candidate-Sampling.** Pro Schritt werden mehrere mögliche
+   Positionen erprobt und jene gewählt, die am weitesten von den übrigen
+   Inseln entfernt liegt (Abstand zur nächstgelegenen Insel). Das streut die
+   Knoten gleichmässig über das Brett, statt sie zu clustern.
+
+Gemessen (40 Inseln):
+
+| | mittlerer Abstand zur Nachbarinsel | Paare direkt nebeneinander |
+|---|---|---|
+| vorher | 1,49 | 11,4 |
+| **jetzt** | **2,10** | **0,0** |
+
+Nebenbei ein angenehmer Effekt: durch die gleichmässigere Verstellung
+entstehen weniger zufällige Ausrichtungen – die Rätsel sind damit auch
+deutlich **logiklösbarer** (bei 20–29 Inseln steigt der Anteil rein
+logisch bestimmbarer Kanten von 60 % auf 100 %).
+
+Die Raster mussten dafür grösser werden, weil ohne direkte Nachbarschaft
+weniger Inseln auf dieselbe Fläche passen. Die gemessenen Kapazitäten:
+
+| Raster | erreichbare Inseln |
+|---|---|
+| 11 × 11 | ~34 |
+| 13 × 13 | ~46 |
+| 16 × 16 | ~65 |
+| 19 × 17 | ~80 |
+| 23 × 21 | ~115 |
 
 ---
 
