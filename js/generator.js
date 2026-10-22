@@ -29,6 +29,7 @@ import { RNG, randomSeed } from './rng.js';
 import { buildBoard, isConnected } from './board.js';
 import { findSolutions, propagationStatus, Solver } from './solver.js';
 import { measure, score, relativeScore, bucketFor, label as difficultyLabel } from './difficulty.js';
+import { LEVEL_BANDS, CELLS_PER_ISLAND, bandDistance, gridFor } from './difficulty.js';
 import { CALIBRATION } from './data/difficulty.js';
 
 /**
@@ -850,6 +851,9 @@ export const internals = {
  * @param {number} [options.islands]     Feste Inselzahl (überschreibt den Bereich)
  * @param {object} [options.format]      Rasterformat (siehe BOOKLET_FORMAT)
  * @param {number} [options.keep]        Anzahl Kandidaten für die Qualitätsauswahl
+ * @param {string} [options.target]      Gewünschte Schwierigkeitsstufe. Der
+ *   Generator sucht dann ein Rätsel, dessen *gemessene* Schwierigkeit in
+ *   das Band der Stufe fällt – und passt dafür die Rastergrösse an.
  */
 export function generatePuzzle({
   difficulty = 'medium',
@@ -857,10 +861,12 @@ export function generatePuzzle({
   islands = null,
   format = null,
   keep = null,
+  target = null,
+  maxGridFactor = 60,
 } = {}) {
   const cfg = DIFFICULTIES[difficulty] ?? DIFFICULTIES.medium;
   const fmt = format ?? cfg;
-  const rng = new RNG(`${seed}|${difficulty}|hashi-v3`);
+  const rng = new RNG(`${seed}|${difficulty}|hashi-v4`);
 
   const minIslands = islands ?? fmt.min;
   const maxIslands = islands ?? fmt.max;
@@ -868,31 +874,32 @@ export function generatePuzzle({
   // Heftes darf ruhig einige Minuten dauern.
   const tries = islands ? Math.max(40, cfg.tries) : cfg.tries;
   const keepCount = keep ?? cfg.keep;
+  const band = target ? LEVEL_BANDS[target] ?? null : null;
 
-  let best = null;
-  let bestScore = -Infinity;
-  let valid = 0;
-
-  for (let attempt = 0; attempt < tries; attempt++) {
-    const target = rng.range(minIslands, maxIslands);
+  /**
+   * Erzeugt einen Kandidaten auf einem vorgegebenen Raster.
+   * @returns {object|null}
+   */
+  const makeOne = (cols, rows) => {
+    const islandCount = rng.range(minIslands, maxIslands);
     const sol = growSolution(
       rng,
-      target,
-      fmt.cols,
-      fmt.rows,
+      islandCount,
+      cols,
+      rows,
       fmt.double,
       fmt.maxExtra,
       fmt.maxLen ?? 2,
       fmt.noAdjacent ?? false,
     );
-    if (!sol) continue;
-    if (!validateSolution(sol)) continue;
+    if (!sol) return null;
+    if (!validateSolution(sol)) return null;
 
     let current = sol;
     // Die Reparaturschleife rechnet mit dem Solver und ist deshalb nur für
     // kleine Bretter schnell genug. Bei grossen Brettern hilft stattdessen
-    // der Versuch mit einer anderen Anordnung (die Schleife unten).
-    if (fmt.repairLimit && target <= fmt.repairLimit) {
+    // der Versuch mit einer anderen Anordnung.
+    if (fmt.repairLimit && islandCount <= fmt.repairLimit) {
       const fixed = repair(sol, rng, cfg.maxRepair);
       if (fixed) current = fixed;
     }
@@ -908,23 +915,73 @@ export function generatePuzzle({
     // Schwierigkeitsbewertung gebraucht wird.
     const solver = new Solver(board);
     const solutions = solver.findSolutions(2);
-    if (solutions.length !== 1) continue;
-    if (!sameArray(solutions[0], counts)) continue;
+    if (solutions.length !== 1) return null;
+    if (!sameArray(solutions[0], counts)) return null;
 
-    // Schwierigkeitsgrad messen (0 = leicht, 1 = schwer).
-    // Normiert wird gegen die globalen Referenzbereiche, damit die Werte
-    // zwischen verschiedenen Brettgrössen vergleichbar sind.
     const metrics = measure(board, solver, solver.ruleSteps);
-    const difficulty = score(metrics, GLOBAL_BOUNDS);
-    const relative = relativeScore(metrics, BUCKET_BOUNDS[bucketFor(board.islands.length)]);
+    return {
+      board,
+      counts,
+      difficulty: score(metrics, GLOBAL_BOUNDS),
+      relative: relativeScore(metrics, BUCKET_BOUNDS[bucketFor(board.islands.length)]),
+      quality: qualityScore(board, counts),
+    };
+  };
 
-    const scoreValue = qualityScore(board, counts);
-    valid++;
-    if (scoreValue > bestScore) {
-      bestScore = scoreValue;
-      best = { board, counts, difficulty, relative };
+  let best = null;
+  let bestDistance = Infinity;
+
+  if (band && islands) {
+    // Adaptive Suche: die Rastergrösse wird anhand der *gemessenen*
+    // Schwierigkeit nachgeführt. Zu schwer -> luftigeres Raster (mehr
+    // Felder je Insel), zu leicht -> dichteres.
+    //
+    // Bei festen Inselzahlen streut die Schwierigkeit stark (die Struktur
+    // des Baumes entscheidet mit). Deshalb wird je Rastergrösse der
+    // Mittelwert mehrerer Versuche herangezogen.
+    const mid = (band[0] + band[1]) / 2;
+    const maxFactor = maxGridFactor ?? 60;
+    let factor = (fmt.cols * fmt.rows) / Math.max(1, islands);
+
+    for (let round = 0; round < 6; round++) {
+      const [cols, rows] = gridFor(islands, factor);
+      let sum = 0;
+      let n = 0;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const candidate = makeOne(cols, rows);
+        if (!candidate) continue;
+        n++;
+        sum += candidate.difficulty;
+        const distance = bandDistance(candidate.difficulty, band);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = candidate;
+        }
+        if (distance === 0) break;
+      }
+      if (bestDistance === 0) break;
+      // Richtung bestimmen
+      if (n > 0 && sum / n > mid) factor *= 1.4;
+      else factor /= 1.4;
+      factor = Math.max(1.6, Math.min(maxFactor, factor));
+      // Am Anschlag der Rastergrösse ist nichts mehr zu holen.
+      if (factor >= maxFactor || factor <= 1.6) break;
     }
-    if (valid >= keepCount) break;
+  } else {
+    // Ohne Zielvorgabe: das beste von mehreren Kandidaten nach der
+    // Struktur-Qualität.
+    let bestScore = -Infinity;
+    let valid = 0;
+    for (let attempt = 0; attempt < tries; attempt++) {
+      const candidate = makeOne(fmt.cols, fmt.rows);
+      if (!candidate) continue;
+      valid++;
+      if (candidate.quality > bestScore) {
+        bestScore = candidate.quality;
+        best = candidate;
+      }
+      if (valid >= keepCount) break;
+    }
   }
 
   if (!best) {
@@ -934,8 +991,13 @@ export function generatePuzzle({
     const fixed = repair(fallback, rng, 300);
     const sol = fixed ?? fallback;
     const board = boardOf(sol, numbersOf(sol));
-    best = { board, counts: countsOf(board, sol), difficulty: 0.2 };
-    bestScore = qualityScore(board, best.counts);
+    best = {
+      board,
+      counts: countsOf(board, sol),
+      difficulty: 0.2,
+      relative: 0.5,
+      quality: qualityScore(board, countsOf(board, sol)),
+    };
   }
 
   return {
@@ -948,7 +1010,7 @@ export function generatePuzzle({
     edges: best.board.edges,
     solution: best.counts.slice(),
     doubles: best.counts.filter((c) => c === 2).length,
-    score: Number(bestScore.toFixed(2)),
+    score: Number(best.quality.toFixed(2)),
     // Gemessener Schwierigkeitsgrad: 0 = sehr leicht, 1 = sehr schwer.
     // Getrennt von `difficulty` (der Stufen-Kennung) benannt.
     difficultyScore: Number(best.difficulty.toFixed(3)),

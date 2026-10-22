@@ -72,8 +72,9 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
   nebeneinander) richtet sich nach der Form des Rasters.
 * **Inseln pro Rätsel** frei wählbar (40/60/80/**100**). Etwa 100 Inseln
   füllen eine DIN-A6-Seite genau aus.
-* **Mehrere Schwierigkeitsgrade**: Leicht, Mittel, Schwer und Experte lassen
-  sich kombinieren – die Rätsel werden dann abwechselnd gemischt.
+* **Schwierigkeit als Zielvorgabe**: Der Generator sucht ein Raster, auf dem
+  das Rätsel *gemessen* in die gewählte Stufe fällt. Ist das bei der
+  gewählten Inselzahl nicht möglich, weist das Heft darauf hin.
 * **Bis zu 100 Rätsel** pro Heft (frei wählbar, oder über die Presets
   8/20/50/100). Die Erzeugung läuft in Etappen, damit die Seite bedienbar
   bleibt. Ein Heft mit 100 Rätseln zu 100 Inseln braucht rund **2 Minuten**.
@@ -332,6 +333,52 @@ weniger Inseln auf dieselbe Fläche passen. Die gemessenen Kapazitäten:
 | 16 × 16 | ~65 |
 | 19 × 17 | ~80 |
 | 23 × 21 | ~115 |
+
+### Rätselheft: Schwierigkeit als Zielvorgabe
+
+Früher war die Auswahl im Heft widersprüchlich: der Schwierigkeitsgrad
+wurde **ausschliesslich** über die Inselzahl bestimmt, die Stufen-Auswahl war
+nur ein Etikett. Ein „leichtes" Rätsel mit 100 Inseln war deshalb schlicht
+unmöglich – es war immer „sehr schwer".
+
+**Ursache:** Die Schwierigkeit hängt nicht an der Inselzahl, sondern an der
+**Dichte** des Brettes. 100 Inseln auf 23 × 21 Feldern sind sehr schwer,
+dieselben 100 Inseln auf 42 × 40 Feldern nur mittel:
+
+| Raster (100 Inseln) | gemessene Schwierigkeit | rein logisch lösbar |
+|---|---|---|
+| 23 × 21 | 0,80 (sehr schwer) | 6 % |
+| 28 × 26 | 0,72 | 19 % |
+| 34 × 32 | 0,65 | 18 % |
+| 42 × 40 | 0,52 (mittel) | 41 % |
+
+**Lösung:** Der Generator sucht jetzt ein Rätsel, dessen *gemessene*
+Schwierigkeit in das Band der gewünschten Stufe fällt, und passt dafür die
+Rastergrösse adaptiv an (zu schwer → luftigeres Raster, zu leicht →
+dichteres). Die Stufen-Auswahl im Heft ist damit eine echte Zielvorgabe.
+
+**Die Antwort auf die Kernfrage:** *Ja* – ein Rätsel mit 100 Inseln **kann**
+leicht sein. Es braucht nur ein entsprechend weiteres Raster. Auf einer
+DIN-A6-Seite ist das allerdings nicht darstellbar: bei maximal 37 Spalten
+bleiben die Knoten gerade noch lesbar, und dann ist ein 100-Inseln-Rätsel
+zwangsläufig „sehr schwer".
+
+Deshalb weist das Heft darauf hin, wenn eine Kombination nicht erreichbar
+ist:
+
+> Ziel „Leicht" ist bei 100 Inseln nicht erreichbar (möglich ist 0,35–0,80)
+
+Der Bereich stammt aus der Kalibrierung: sie merkt sich je Inselzahl-Bündel,
+welche Schwierigkeiten tatsächlich vorkommen. Die Bänder der globalen Skala
+gelten für die Gesamtheit aller Rätsel – ein 40-Inseln-Rätsel ist prinzipiell
+nicht so schwer wie ein 100-Inseln.
+
+Unter jedem Rätsel steht jetzt die **gemessene** Schwierigkeit, nicht die
+gewünschte:
+
+```
+7 · mittel (0.41)
+```
 
 ---
 

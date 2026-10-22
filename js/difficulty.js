@@ -21,6 +21,8 @@
  *     zwischen verschiedenen Brettgrössen vergleichbar bleiben.
  */
 
+import { CALIBRATION } from './data/difficulty.js';
+
 /** Metriken, die in die Bewertung eingehen. */
 export const METRICS = ['nodes', 'logicShare', 'avgNumber', 'density'];
 
@@ -41,6 +43,78 @@ export const BUCKETS = [
   { id: '60-79', min: 60, max: 79 },
   { id: '80-120', min: 80, max: 120 },
 ];
+
+/**
+ * Bänder der gemessenen Schwierigkeit, aufgeschlüsselt nach Stufe.
+ *
+ * Die Grenzen sind die Perzentile aus der Kalibrierung
+ * (`calibration.bands`) – sie liegen also dort, wo die Rätselpopulation
+ * tatsächlich umkippt. Wer den Generator ändert, sollte die Kalibrierung
+ * neu laufen lassen.
+ */
+const BANDS = Array.isArray(CALIBRATION?.bands) && CALIBRATION.bands.length === 4
+  ? CALIBRATION.bands
+  : [0.2, 0.4, 0.6, 0.8];
+
+export const LEVEL_BANDS = {
+  easy: [0, BANDS[1]],
+  medium: [BANDS[1], BANDS[2]],
+  hard: [BANDS[2], BANDS[3]],
+  expert: [BANDS[3], 1],
+};
+
+/**
+ * Zellen je Insel, die zu den Schwierigkeitsbändern passen.
+ *
+ * Grund: die Schwierigkeit hängt vor allem an der *Dichte* des Brettes
+ * ab, nicht an der absoluten Inselzahl. 100 Inseln auf 23 × 21 Feldern sind
+ * sehr schwer, dieselben 100 Inseln auf 42 × 40 Feldern nur mittel.
+ */
+export const CELLS_PER_ISLAND = {
+  easy: 16.0,
+  medium: 10.5,
+  hard: 7.0,
+  expert: 4.6,
+};
+
+/**
+ * Abstand eines Wertes zum Zielband (0 = im Band).
+ * @param {number} value
+ * @param {[number, number]} band
+ */
+export function bandDistance(value, band) {
+  if (!band) return 0;
+  const [lo, hi] = band;
+  if (value < lo) return lo - value;
+  if (value > hi) return value - hi;
+  return 0;
+}
+
+/**
+ * Rastergrösse für eine gewünschte Dichte.
+ *
+ * @param {number} islands  gewünschte Inselzahl
+ * @param {number} factor   Rasterfelder je Insel (größer = luftiger = leichter)
+ * @returns {[number, number]}
+ */
+export function gridFor(islands, factor) {
+  const cells = Math.max(islands + 4, Math.round(islands * factor));
+  const side = Math.max(3, Math.round(Math.sqrt(cells)));
+  return [side, side];
+}
+
+/**
+ * Rastergrössen, die für eine gewünschte Schwierigkeit in Frage kommen –
+ * von eng (schwer) bis weit (leicht).
+ *
+ * @param {number} islands  gewünschte Inselzahl
+ * @param {string} level   'easy' | 'medium' | 'hard' | 'expert'
+ * @returns {Array<[number, number]>}
+ */
+export function gridSizesFor(islands, level) {
+  const base = CELLS_PER_ISLAND[level] ?? CELLS_PER_ISLAND.medium;
+  return [1, 1.45, 0.72].map((f) => gridFor(islands, base * f));
+}
 
 /** Welches Bündel gehört zu einer bestimmten Inselzahl? */
 export function bucketFor(islandCount) {
@@ -112,6 +186,33 @@ export function score(metrics, bounds) {
  */
 export function relativeScore(metrics, bounds) {
   return score(metrics, bounds);
+}
+
+/**
+ * Schwierigkeitsbereich, der mit einer Inselzahl überhaupt erreichbar ist.
+ *
+ * Die Kalibrierung merkt sich je Inselzahl-Bündel den tatsächlich
+ * beobachteten Bereich. Ein 40-Inseln-Rätsel ist z. B. nie so schwer wie
+ * ein 100-Inseln – die Bänder der globalen Skala greifen dort nicht.
+ *
+ * @param {object} bounds  Referenzbereiche eines Bündels
+ * @returns {[number, number]}
+ */
+export function achievableRange(bounds) {
+  if (!bounds) return [0, 1];
+  if (Array.isArray(bounds.scoreRange)) return bounds.scoreRange;
+  // Näherung aus den Metrikbereichen, falls keine Messreihe vorliegt.
+  const easiest = {};
+  const hardest = {};
+  for (const metric of METRICS) {
+    const range = bounds[metric];
+    if (!range) continue;
+    // Der Logikanteil ist invers zur Schwierigkeit.
+    const inverted = metric === 'logicShare';
+    easiest[metric] = inverted ? range[1] : range[0];
+    hardest[metric] = inverted ? range[0] : range[1];
+  }
+  return [score(easiest, bounds), score(hardest, bounds)];
 }
 
 /**

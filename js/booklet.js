@@ -8,6 +8,8 @@ import { buildBoard } from './board.js';
 import { randomSeed } from './rng.js';
 import { boardToSvgElement, boardToSvgElementWithSolution, SVG_VIEW_PAD } from './svg.js';
 import { bestLayout, cellSizeMm, groupIntoPages } from './layout.js';
+import { LEVEL_BANDS, achievableRange, bucketFor } from './difficulty.js';
+import { CALIBRATION } from './data/difficulty.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -29,18 +31,28 @@ const ui = {
 /** Höchstzahl an Rätseln pro Heft. */
 const MAX_PUZZLES = 100;
 
+/**
+ * Maximale Rasterweite auf einer A6-Seite.
+ *
+ * Auf einer A6-Seite stehen 93 mm Breite zur Verfügung. Damit die Knoten
+ * noch lesbar bleiben, soll eine Rasterzelle mindestens 2,5 mm breit sein –
+ * das ergibt höchstens 37 Spalten.
+ */
+const MAX_COLS = 37;
+
 /** Deutsche Bezeichnungen -> interne Kennungen (für Links). */
 const LABEL_TO_ID = Object.fromEntries(
   Object.values(DIFFICULTIES).map((d) => [d.label.toLowerCase(), d.id]),
 );
 
 const state = {
-  difficulties: ['medium'], // mehrere Grade werden gemischt
+  level: 'medium', // gewünschte Schwierigkeitsstufe (Zielband)
   perPage: 2,
   count: 8,
   islands: 100, // Inseln pro Rätsel
   seed: randomSeed(),
   withSolutions: true,
+  format: null, // Raster des Hefts (nach dem ersten Rätsel eingefroren)
   puzzles: [],
 };
 
@@ -48,26 +60,33 @@ const state = {
  * Erzeugung
  * ------------------------------------------------------------------ */
 
-/** Die ausgewählten Schwierigkeitsgrade – ohne Auswahl gilt "Mittel". */
-function activeDifficulties() {
-  return state.difficulties.length ? state.difficulties : ['medium'];
-}
-
 /**
  * Erzeugt ein einzelnes Rätsel.
- * @param {number} index  laufende Nummer (0-basiert)
+ *
+ * `state.level` ist die gewünschte Schwierigkeitsstufe. Der Generator
+ * sucht dafür ein Raster, auf dem das Rätsel *gemessen* in das Band der
+ * Stufe fällt. Die Inselzahl allein legt die Schwierigkeit nämlich nicht
+ * fest – entscheidend ist die Dichte des Brettes.
+ *
+ * Das Raster des ersten Rätsels gilt danach für das ganze Heft: so
+ * behalten alle Knoten exakt dieselbe Grösse.
  */
 function makePuzzle(index) {
-  const levels = activeDifficulties();
-  const difficulty = levels[index % levels.length];
   const seed = `${state.seed}-${index + 1}`;
+  const format = state.format ?? BOOKLET_FORMAT;
   const puzzle = generatePuzzle({
-    difficulty,
+    difficulty: state.level,
     seed,
     islands: state.islands,
-    format: BOOKLET_FORMAT,
+    format,
     keep: 1,
+    target: state.level,
+    // Das Raster darf nicht so weit werden, dass die Seite unlesbar wird.
+    maxGridFactor: (MAX_COLS * MAX_COLS) / Math.max(1, state.islands),
   });
+  if (!state.format) {
+    state.format = { ...BOOKLET_FORMAT, cols: puzzle.cols, rows: puzzle.rows };
+  }
   const board = buildBoard(
     puzzle.islands.map((isl) => ({ id: isl.id, r: isl.r, c: isl.c, num: isl.num })),
     puzzle.cols,
@@ -97,24 +116,43 @@ function miniPuzzle(puzzle, index, { solution = false, layout = 'row', count = 1
 
   const board = document.createElement('div');
   board.className = 'mini__board';
+  // Die Knotengrösse richtet sich nach der Rasterzelle – so bleibt das
+  // Heft bei jeder Rasterweite druckbar und einheitlich.
+  const options = {
+    cellMm,
+    islandRadius: cellMm * 0.33,
+    fontSize: cellMm * 0.4,
+    bridgeWidth: cellMm * 0.085,
+    bridgeOffset: cellMm * 0.095,
+    islandStroke: cellMm * 0.045,
+    gridWidth: cellMm * 0.022,
+    gridDash: `${(cellMm * 0.05).toFixed(3)} ${(cellMm * 0.22).toFixed(3)}`,
+    frameWidth: cellMm * 0.04,
+  };
   const svg = solution
     ? // Bei Lösungsseiten werden die Inseln nicht durchgestrichen –
       // sonst wäre das Blatt überladen.
-      boardToSvgElementWithSolution(puzzle.board, puzzle.solution, { cellMm, markComplete: false })
-    : boardToSvgElement(puzzle.board, { cellMm });
+      boardToSvgElementWithSolution(puzzle.board, puzzle.solution, {
+        ...options,
+        markComplete: false,
+      })
+    : boardToSvgElement(puzzle.board, options);
   // Feste Grösse in Millimetern: der Browser skaliert das SVG nicht
   // mehr, dadurch bleibt 1 Benutzereinheit genau 1 mm.
   svg.style.width = `${widthMm.toFixed(2)}mm`;
   svg.style.height = `${heightMm.toFixed(2)}mm`;
   board.appendChild(svg);
 
-  // Unter dem Rätsel stehen Nummer, Schwierigkeitsgrad und Seed.
+  // Unter dem Rätsel stehen Nummer, gemessene Schwierigkeit und Seed.
   // Bewusst keine Kopfzeile: dort stünde eine Seitenzahl, die irritiert.
   const foot = document.createElement('footer');
   foot.className = 'mini__foot';
   const label = document.createElement('span');
   label.className = 'mini__level';
-  label.textContent = `${index + 1} · ${solution ? 'Lösung' : puzzle.difficultyLabel}`;
+  // Die angezeigte Stufe ist die *gemessene* – nicht die gewünschte.
+  label.textContent = solution
+    ? `${index + 1} · Lösung`
+    : `${index + 1} · ${puzzle.difficultyText} (${puzzle.difficultyScore.toFixed(2)})`;
   const seed = document.createElement('span');
   seed.className = 'mini__seed';
   seed.textContent = puzzle.seed;
@@ -170,22 +208,35 @@ function render() {
 
   const singles = pages.filter((p) => p.length === 1).length;
   const doubles = pages.length - singles;
-  const levels = activeDifficulties()
-    .map((id) => DIFFICULTIES[id].label)
-    .join(' / ');
 
   ui.info.dataset.dirty = '';
   const avgDifficulty =
     puzzles.length > 0
       ? puzzles.reduce((sum, p) => sum + (p.difficultyScore ?? 0), 0) / puzzles.length
       : 0;
+  const target = DIFFICULTIES[state.level]?.label ?? state.level;
+  const band = LEVEL_BANDS[state.level] ?? [0, 1];
+  const imBand = puzzles.filter(
+    (p) => p.difficultyScore >= band[0] && p.difficultyScore <= band[1],
+  ).length;
+
+  // Ist das Ziel mit dieser Inselzahl überhaupt erreichbar?
+  // Entscheidend ist, ob sich die Bänder überschneiden.
+  const range = achievableRange(CALIBRATION.buckets[bucketFor(state.islands)]);
+  const erreichbar = band[0] <= range[1] && band[1] >= range[0];
+  const hinweis = erreichbar
+    ? ''
+    : ` · Ziel „${target}" ist bei ${state.islands} Inseln nicht erreichbar ` +
+      `(möglich ist ${range[0].toFixed(2)}–${range[1].toFixed(2)})`;
+
   ui.info.textContent =
-    `${puzzles.length} Rätsel · ${puzzles[0]?.islands.length ?? state.islands} Inseln · ${levels} · ` +
-    `Schwierigkeit Ø ${avgDifficulty.toFixed(2)} · ` +
+    `${puzzles.length} Rätsel · ${puzzles[0]?.islands.length ?? state.islands} Inseln · ` +
+    `Ziel „${target}" · gemessen Ø ${avgDifficulty.toFixed(2)} ` +
+    `(${imBand}/${puzzles.length} im Zielband) · ` +
     `${pages.length} Seiten` +
     (singles ? ` (${doubles} mit 2, ${singles} mit 1 Rätsel)` : ' mit je 2 Rätseln') +
     (state.withSolutions ? ` + ${pages.length} Lösungsseiten` : '') +
-    ` · DIN A6 · Seed ${state.seed}`;
+    ` · DIN A6 · Seed ${state.seed}${hinweis}`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -194,10 +245,7 @@ function render() {
 
 function syncGroups() {
   for (const button of ui.difficulty.querySelectorAll('button')) {
-    button.setAttribute(
-      'aria-pressed',
-      String(state.difficulties.includes(button.dataset.level)),
-    );
+    button.setAttribute('aria-pressed', String(button.dataset.level === state.level));
   }
   for (const button of ui.perPage.querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(Number(button.dataset.per) === state.perPage));
@@ -213,7 +261,7 @@ function syncGroups() {
 function updateHash() {
   const params = new URLSearchParams({
     seed: state.seed,
-    d: activeDifficulties().join(','),
+    d: state.level,
     n: String(state.count),
     per: String(state.perPage),
     ins: String(state.islands),
@@ -231,15 +279,9 @@ function readHash() {
   const per = Number(params.get('per'));
   if (seed) out.seed = seed;
 
-  const levels = (params.get('d') || '')
-    .split(',')
-    .map((value) => {
-      const key = value.trim().toLowerCase();
-      if (DIFFICULTIES[key]) return key;
-      return LABEL_TO_ID[key] ?? null;
-    })
-    .filter(Boolean);
-  if (levels.length) out.difficulties = levels;
+  const d = (params.get('d') || '').trim().toLowerCase();
+  if (DIFFICULTIES[d]) out.level = d;
+  else if (LABEL_TO_ID[d]) out.level = LABEL_TO_ID[d];
 
   if (Number.isFinite(n) && n >= 1 && n <= MAX_PUZZLES) out.count = Math.round(n);
   const ins = Number(params.get('ins'));
@@ -312,12 +354,11 @@ function buildDifficultyButtons() {
     button.dataset.level = id;
     button.textContent = cfg.label;
     button.setAttribute('aria-pressed', 'false');
+    button.title = `Gewünschte Schwierigkeit – der Generator sucht ein Raster, auf dem das Rätsel gemessen in dieses Band fällt`;
     button.addEventListener('click', () => {
-      // Mehrfachauswahl: der gewählte Grad wird umgeschaltet.
+      // Auswahl (keine Mehrfachauswahl): die Stufe ist die Zielvorgabe.
       // Es wird bewusst NICHT neu erzeugt – erst der Knopf "Heft erzeugen".
-      const index = state.difficulties.indexOf(id);
-      if (index === -1) state.difficulties.push(id);
-      else state.difficulties.splice(index, 1);
+      state.level = id;
       syncGroups();
       markDirty();
     });
@@ -327,6 +368,8 @@ function buildDifficultyButtons() {
 
 /** Merkt vor, dass die aktuelle Vorschau zu den Einstellungen veraltet ist. */
 function markDirty() {
+  // Bei geänderten Einstellungen muss das Raster neu bestimmt werden.
+  state.format = null;
   if (!state.puzzles.length) return;
   ui.info.textContent =
     'Einstellungen geändert – bitte "Heft erzeugen" klicken, um sie anzuwenden.';

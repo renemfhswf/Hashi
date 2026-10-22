@@ -38,11 +38,13 @@
       <main class="booklet__main">
         <section class="panel booklet__controls">
           <div class="field">
-            <span class="field__label">Schwierigkeitsgrade</span>
-            <div class="segmented segmented--4" id="difficulty" role="group" aria-label="Schwierigkeitsgrade"></div>
+            <span class="field__label">Schwierigkeit (Ziel)</span>
+            <div class="segmented segmented--4" id="difficulty" role="group" aria-label="Gewünschte Schwierigkeit"></div>
             <p class="field__note">
-              Mehrere Grade auswählen – die Rätsel werden dann abwechselnd
-              gemischt. Ohne Auswahl gilt „Mittel".
+              Der Generator sucht ein Raster, auf dem das Rätsel
+              <em>gemessen</em> in diese Stufe fällt. Die Inselzahl allein
+              legt die Schwierigkeit nicht fest – entscheidend ist, wie dicht
+              die Inseln stehen.
             </p>
           </div>
 
@@ -67,8 +69,9 @@
               <button type="button" data-islands="100">100</button>
             </div>
             <p class="field__note">
-              Etwa 100 Inseln füllen eine DIN-A6-Seite. Bei dieser Menge wird
-              automatisch nur ein Rätsel pro Seite gesetzt.
+              Etwa 100 Inseln füllen eine DIN-A6-Seite. Wie schwer das Rätsel
+              dann wird, entscheidet die Dichte – die der Generator passend
+              zur gewünschten Stufe wählt.
             </p>
           </div>
 

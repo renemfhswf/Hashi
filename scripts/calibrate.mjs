@@ -105,11 +105,18 @@ for (const [id, rows] of samples) {
       Number(percentile(values, 0.95).toFixed(4)),
     ];
   }
+  // Der tatsächlich erreichbare Schwierigkeitsbereich dieser Inselzahl.
+  const scores = rows.map((r) => score(r, calibration.global)).sort((a, b) => a - b);
+  calibration.buckets[id].scoreRange = [
+    Number(scores[0].toFixed(4)),
+    Number(scores[scores.length - 1].toFixed(4)),
+  ];
   const nodes = rows.map((r) => r.nodes).sort((a, b) => a - b);
   const logic = rows.map((r) => r.logicShare).sort((a, b) => a - b);
   console.log(
     `  ${id.padEnd(8)} Knoten median=${percentile(nodes, 0.5).toFixed(2)} ` +
-    `Logikanteil median=${(percentile(logic, 0.5) * 100).toFixed(0)}%`,
+    `Logikanteil median=${(percentile(logic, 0.5) * 100).toFixed(0)}% ` +
+    `Schwierigkeit ${calibration.buckets[id].scoreRange[0].toFixed(2)}–${calibration.buckets[id].scoreRange[1].toFixed(2)}`,
   );
 }
 console.log(

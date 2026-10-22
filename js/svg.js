@@ -73,14 +73,14 @@ export function boardToSvgElement(board, options = {}) {
   const mm = typeof o.cellMm === 'number' && o.cellMm > 0;
   const cell = mm ? o.cellMm : 1;
 
-  const islandRadius = mm ? MM.islandRadius : o.islandRadius;
-  const fontSize = mm ? MM.fontSize : o.fontSize;
-  const bridgeWidth = mm ? MM.bridgeWidth : o.bridgeWidth;
-  const bridgeOffset = mm ? MM.bridgeOffset : o.bridgeOffset;
-  const islandStroke = mm ? MM.islandStroke : 0.045;
-  const gridWidth = mm ? MM.gridWidth : 0.022;
-  const gridDash = mm ? MM.gridDash : '0.05 0.22';
-  const frameWidth = mm ? MM.frameWidth : 0.04;
+  const islandRadius = mm ? (o.islandRadius ?? MM.islandRadius) : o.islandRadius;
+  const fontSize = mm ? (o.fontSize ?? MM.fontSize) : o.fontSize;
+  const bridgeWidth = mm ? (o.bridgeWidth ?? MM.bridgeWidth) : o.bridgeWidth;
+  const bridgeOffset = mm ? (o.bridgeOffset ?? MM.bridgeOffset) : o.bridgeOffset;
+  const islandStroke = mm ? (o.islandStroke ?? MM.islandStroke) : 0.045;
+  const gridWidth = mm ? (o.gridWidth ?? MM.gridWidth) : 0.022;
+  const gridDash = mm ? (o.gridDash ?? MM.gridDash) : '0.05 0.22';
+  const frameWidth = mm ? (o.frameWidth ?? MM.frameWidth) : 0.04;
 
   // Koordinaten: der Mittelpunkt der Insel (r, c) liegt auf (c, r).
   // Das Spielfeld reicht von -0.5 bis cols-0.5 (bzw. rows-0.5).
