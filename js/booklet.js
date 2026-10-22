@@ -8,7 +8,7 @@ import { buildBoard } from './board.js';
 import { randomSeed } from './rng.js';
 import { boardToSvgElement, boardToSvgElementWithSolution, SVG_VIEW_PAD } from './svg.js';
 import { bestLayout, cellSizeMm, groupIntoPages } from './layout.js';
-import { LEVEL_BANDS, achievableRange, bucketFor } from './difficulty.js';
+import { LEVEL_BANDS, achievableRange, bucketFor, maxIslandsFor } from './difficulty.js';
 import { CALIBRATION } from './data/difficulty.js';
 
 const $ = (id) => document.getElementById(id);
@@ -18,7 +18,6 @@ const ui = {
   perPage: $('perPage'),
   count: $('count'),
   countInput: $('countInput'),
-  islands: $('islands'),
   seedInput: $('seedInput'),
   copyBtn: $('copyBtn'),
   withSolutions: $('withSolutions'),
@@ -34,11 +33,15 @@ const MAX_PUZZLES = 100;
 /**
  * Maximale Rasterweite auf einer A6-Seite.
  *
- * Auf einer A6-Seite stehen 93 mm Breite zur Verfügung. Damit die Knoten
- * noch lesbar bleiben, soll eine Rasterzelle mindestens 2,5 mm breit sein –
- * das ergibt höchstens 37 Spalten.
+ * Auf einer A6-Seite stehen 93 mm Breite zur Verfügung. Die Zahl im Knoten
+ * soll mindestens rund 6 pt gross sein – bei einem Knotendurchmesser von
+ * 0,8 Rasterzellen braucht die Zelle dafür mindestens 4,2 mm. Das ergibt
+ * höchstens 22 Spalten.
  */
-const MAX_COLS = 37;
+const MAX_COLS = 22;
+
+/** Höchstzahl an Inseln je Rätsel im Heft. */
+const MAX_ISLANDS = 100;
 
 /** Deutsche Bezeichnungen -> interne Kennungen (für Links). */
 const LABEL_TO_ID = Object.fromEntries(
@@ -49,7 +52,6 @@ const state = {
   level: 'medium', // gewünschte Schwierigkeitsstufe (Zielband)
   perPage: 2,
   count: 8,
-  islands: 100, // Inseln pro Rätsel
   seed: randomSeed(),
   withSolutions: true,
   format: null, // Raster des Hefts (nach dem ersten Rätsel eingefroren)
@@ -59,6 +61,19 @@ const state = {
 /* ------------------------------------------------------------------ *
  * Erzeugung
  * ------------------------------------------------------------------ */
+
+/**
+ * Anzahl der Inseln je Rätsel.
+ *
+ * Sie ergibt sich aus der gewünschten Schwierigkeitsstufe: die Stufe legt
+ * fest, wie schwer ein Rätsel sein soll, und die Kalibrierung sagt, wie
+ * viele Inseln dabei noch möglich sind. Eine eigene Auswahl der Inselzahl
+ * wäre überflüssig – sie widerspräche der Stufe.
+ */
+function islandCount() {
+  const max = maxIslandsFor(state.level, CALIBRATION) || 40;
+  return Math.min(max, MAX_ISLANDS);
+}
 
 /**
  * Erzeugt ein einzelnes Rätsel.
@@ -77,12 +92,12 @@ function makePuzzle(index) {
   const puzzle = generatePuzzle({
     difficulty: state.level,
     seed,
-    islands: state.islands,
+    islands: islandCount(),
     format,
     keep: 1,
     target: state.level,
     // Das Raster darf nicht so weit werden, dass die Seite unlesbar wird.
-    maxGridFactor: (MAX_COLS * MAX_COLS) / Math.max(1, state.islands),
+    maxGridFactor: (MAX_COLS * MAX_COLS) / Math.max(1, islandCount()),
   });
   if (!state.format) {
     state.format = { ...BOOKLET_FORMAT, cols: puzzle.cols, rows: puzzle.rows };
@@ -117,13 +132,15 @@ function miniPuzzle(puzzle, index, { solution = false, layout = 'row', count = 1
   const board = document.createElement('div');
   board.className = 'mini__board';
   // Die Knotengrösse richtet sich nach der Rasterzelle – so bleibt das
-  // Heft bei jeder Rasterweite druckbar und einheitlich.
+  // Heft bei jeder Rasterweite druckbar und einheitlich. Auf Papier sind
+  // die Knoten etwas grösser als am Bildschirm, damit die Zahlen lesbar
+  // bleiben.
   const options = {
     cellMm,
-    islandRadius: cellMm * 0.33,
-    fontSize: cellMm * 0.4,
-    bridgeWidth: cellMm * 0.085,
-    bridgeOffset: cellMm * 0.095,
+    islandRadius: cellMm * 0.4,
+    fontSize: cellMm * 0.5,
+    bridgeWidth: cellMm * 0.08,
+    bridgeOffset: cellMm * 0.09,
     islandStroke: cellMm * 0.045,
     gridWidth: cellMm * 0.022,
     gridDash: `${(cellMm * 0.05).toFixed(3)} ${(cellMm * 0.22).toFixed(3)}`,
@@ -222,15 +239,15 @@ function render() {
 
   // Ist das Ziel mit dieser Inselzahl überhaupt erreichbar?
   // Entscheidend ist, ob sich die Bänder überschneiden.
-  const range = achievableRange(CALIBRATION.buckets[bucketFor(state.islands)]);
+  const range = achievableRange(CALIBRATION.buckets[bucketFor(islandCount())]);
   const erreichbar = band[0] <= range[1] && band[1] >= range[0];
   const hinweis = erreichbar
     ? ''
-    : ` · Ziel „${target}" ist bei ${state.islands} Inseln nicht erreichbar ` +
+    : ` · Ziel „${target}" ist bei ${islandCount()} Inseln nicht erreichbar ` +
       `(möglich ist ${range[0].toFixed(2)}–${range[1].toFixed(2)})`;
 
   ui.info.textContent =
-    `${puzzles.length} Rätsel · ${puzzles[0]?.islands.length ?? state.islands} Inseln · ` +
+    `${puzzles.length} Rätsel · ${puzzles[0]?.islands.length ?? islandCount()} Inseln · ` +
     `Ziel „${target}" · gemessen Ø ${avgDifficulty.toFixed(2)} ` +
     `(${imBand}/${puzzles.length} im Zielband) · ` +
     `${pages.length} Seiten` +
@@ -253,9 +270,6 @@ function syncGroups() {
   for (const button of ui.count.querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(Number(button.dataset.count) === state.count));
   }
-  for (const button of ui.islands.querySelectorAll('button')) {
-    button.setAttribute('aria-pressed', String(Number(button.dataset.islands) === state.islands));
-  }
 }
 
 function updateHash() {
@@ -264,7 +278,6 @@ function updateHash() {
     d: state.level,
     n: String(state.count),
     per: String(state.perPage),
-    ins: String(state.islands),
   });
   if (state.withSolutions) params.set('sol', '1');
   const hash = `#${params.toString()}`;
@@ -284,8 +297,6 @@ function readHash() {
   else if (LABEL_TO_ID[d]) out.level = LABEL_TO_ID[d];
 
   if (Number.isFinite(n) && n >= 1 && n <= MAX_PUZZLES) out.count = Math.round(n);
-  const ins = Number(params.get('ins'));
-  if ([40, 60, 80, 100].includes(ins)) out.islands = ins;
   if ([1, 2].includes(per)) out.perPage = per;
   if (params.get('sol') === '1') out.withSolutions = true;
   return out;
@@ -396,14 +407,6 @@ function setupEvents() {
     });
   }
 
-  for (const button of ui.islands.querySelectorAll('button')) {
-    button.addEventListener('click', () => {
-      state.islands = Number(button.dataset.islands);
-      syncGroups();
-      markDirty();
-    });
-  }
-
   ui.countInput.addEventListener('change', () => {
     const value = Math.round(Number(ui.countInput.value));
     state.count = Math.min(MAX_PUZZLES, Math.max(1, Number.isFinite(value) ? value : 1));
@@ -465,7 +468,7 @@ function showEmptyState() {
   box.innerHTML =
     '<p class="empty__title">Noch kein Heft erzeugt</p>' +
     '<p class="empty__text">Einstellungen wählen und auf <strong>„Heft erzeugen"</strong> klicken. ' +
-    `Bei ${state.islands} Inseln pro Rätsel dauert das einige Minuten.</p>`;
+    `Je nach Schwierigkeit entstehen ${islandCount()} Inseln pro Rätsel – das dauert einige Minuten.</p>`;
   ui.sheets.replaceChildren(box);
   ui.info.textContent = 'Bereit – bitte „Heft erzeugen" klicken.';
   ui.info.dataset.dirty = '';

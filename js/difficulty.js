@@ -216,6 +216,31 @@ export function achievableRange(bounds) {
 }
 
 /**
+ * Grösste Inselzahl, die mit einer Schwierigkeitsstufe noch vereinbar ist.
+ *
+ * Die Kalibrierung merkt sich je Inselzahl-Bündel, welche Schwierigkeiten
+ * tatsächlich vorkommen (20.–80. Perzentil). Eine Stufe ist mit einem
+ * Bündel vereinbar, wenn sich die Bänder überschneiden.
+ *
+ * @param {string} level        'easy' | 'medium' | 'hard' | 'expert'
+ * @param {object} calibration  die Kalibrierdaten
+ * @returns {number} maximale Inselzahl (0, wenn nichts passt)
+ */
+export function maxIslandsFor(level, calibration) {
+  const band = LEVEL_BANDS[level];
+  if (!band || !calibration?.buckets) return 0;
+  let best = 0;
+  for (const bucket of BUCKETS) {
+    const entry = calibration.buckets[bucket.id];
+    const p = entry?.scorePercentiles;
+    if (!p) continue;
+    // Praktisch erreichbarer Bereich: 20.–80. Perzentil
+    if (p[1] <= band[1] && p[3] >= band[0]) best = Math.max(best, bucket.max);
+  }
+  return best;
+}
+
+/**
  * Textliche Einordnung des Schwierigkeitsgrads.
  *
  * Die Grenzen stammen aus der Kalibrierung (`calibration.bands`): sie liegen

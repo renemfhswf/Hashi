@@ -6,6 +6,8 @@ import {
   bandDistance,
   gridFor,
   achievableRange,
+  maxIslandsFor,
+  bucketFor,
   label,
 } from '../js/difficulty.js';
 import { CALIBRATION } from '../js/data/difficulty.js';
@@ -45,6 +47,30 @@ describe('Schwierigkeitsbänder', () => {
       const range = achievableRange(entry);
       assert.ok(range[0] <= range[1], `Bereich verdreht in ${id}`);
       assert.ok(range[0] >= 0 && range[1] <= 1, `Bereich ausserhalb [0,1] in ${id}`);
+    }
+  });
+
+  test('maxIslandsFor leitet die grösste passende Inselzahl ab', () => {
+    for (const level of ['easy', 'medium', 'hard', 'expert']) {
+      const max = maxIslandsFor(level, CALIBRATION);
+      assert.ok(max > 0, `keine Inselzahl für ${level}`);
+      // Der abgeleitete Wert muss zum Band der Stufe passen
+      const band = LEVEL_BANDS[level];
+      const range = achievableRange(CALIBRATION.buckets[bucketFor(max)]);
+      assert.ok(
+        band[0] <= range[1] && band[1] >= range[0],
+        `${level}: Band ${band} überschneidet den Bereich ${range} nicht`,
+      );
+    }
+  });
+
+  test('mit steigender Stufe sinkt die erreichbare Inselzahl nicht', () => {
+    const counts = ['easy', 'medium', 'hard', 'expert'].map((l) => maxIslandsFor(l, CALIBRATION));
+    for (let i = 1; i < counts.length; i++) {
+      assert.ok(
+        counts[i] >= counts[i - 1],
+        `Inselzahl sinkt: ${counts.join(' -> ')}`,
+      );
     }
   });
 });

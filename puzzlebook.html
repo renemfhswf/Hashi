@@ -62,16 +62,10 @@
 
           <div class="field">
             <span class="field__label">Inseln pro Rätsel</span>
-            <div class="segmented segmented--4" id="islands" role="group" aria-label="Inseln pro Rätsel">
-              <button type="button" data-islands="40">40</button>
-              <button type="button" data-islands="60">60</button>
-              <button type="button" data-islands="80">80</button>
-              <button type="button" data-islands="100">100</button>
-            </div>
-            <p class="field__note">
-              Etwa 100 Inseln füllen eine DIN-A6-Seite. Wie schwer das Rätsel
-              dann wird, entscheidet die Dichte – die der Generator passend
-              zur gewünschten Stufe wählt.
+            <p class="field__note" id="islandsInfo">
+              Die Inselzahl ergibt sich automatisch aus der Schwierigkeit:
+              gewählt wird jeweils die größtmögliche Anzahl, die den
+              Schwierigkeitsgrad noch erfüllt.
             </p>
           </div>
 

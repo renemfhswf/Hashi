@@ -106,17 +106,18 @@ for (const [id, rows] of samples) {
     ];
   }
   // Der tatsächlich erreichbare Schwierigkeitsbereich dieser Inselzahl.
+  // Gespeichert werden die Perzentile, damit sich ablesen lässt, welche
+  // Stufen mit dieser Inselzahl überhaupt erreichbar sind.
   const scores = rows.map((r) => score(r, calibration.global)).sort((a, b) => a - b);
-  calibration.buckets[id].scoreRange = [
-    Number(scores[0].toFixed(4)),
-    Number(scores[scores.length - 1].toFixed(4)),
-  ];
+  calibration.buckets[id].scorePercentiles = [0.05, 0.2, 0.5, 0.8, 0.95].map((p) =>
+    Number(percentile(scores, p).toFixed(4)),
+  );
   const nodes = rows.map((r) => r.nodes).sort((a, b) => a - b);
   const logic = rows.map((r) => r.logicShare).sort((a, b) => a - b);
   console.log(
     `  ${id.padEnd(8)} Knoten median=${percentile(nodes, 0.5).toFixed(2)} ` +
     `Logikanteil median=${(percentile(logic, 0.5) * 100).toFixed(0)}% ` +
-    `Schwierigkeit ${calibration.buckets[id].scoreRange[0].toFixed(2)}–${calibration.buckets[id].scoreRange[1].toFixed(2)}`,
+    `Schwierigkeit p20–p80: ${calibration.buckets[id].scorePercentiles[1].toFixed(2)}–${calibration.buckets[id].scorePercentiles[3].toFixed(2)}`,
   );
 }
 console.log(

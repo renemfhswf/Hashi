@@ -70,8 +70,9 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
 * **Automatische Anpassung**: sind die Raster zu gross, wird automatisch nur
   **ein** Rätsel pro Seite gesetzt. Die Anordnung (untereinander oder
   nebeneinander) richtet sich nach der Form des Rasters.
-* **Inseln pro Rätsel** frei wählbar (40/60/80/**100**). Etwa 100 Inseln
-  füllen eine DIN-A6-Seite genau aus.
+* **Inseln pro Rätsel** ergeben sich automatisch aus der Schwierigkeit –
+  gewählt wird jeweils die größtmögliche Anzahl, die den
+  Schwierigkeitsgrad noch erfüllt (59 / 59 / 79 / 100).
 * **Schwierigkeit als Zielvorgabe**: Der Generator sucht ein Raster, auf dem
   das Rätsel *gemessen* in die gewählte Stufe fällt. Ist das bei der
   gewählten Inselzahl nicht möglich, weist das Heft darauf hin.
@@ -216,11 +217,11 @@ Aktueller Stand: **132 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 m
 
 | Grad | Inseln | Raster | Doppelbrücken | Zeit je Rätsel |
 |---|---|---|---|---|
-| Leicht | 12 – 16 | 11 × 11 | ~5 | 14 ms |
-| Mittel | 20 – 26 | 13 × 13 | ~8 | 20 ms |
-| Schwer | 30 – 38 | 16 × 16 | ~9 | 24 ms |
-| Experte | 44 – 56 | 19 × 17 | ~9 | 67 ms |
-| Rätselheft (DIN A6) | 40 / 60 / 80 / **100** | 23 × 21 | ~11 | ~0,3 s |
+| Leicht | 16 – 46 | 14 × 14 | ~10 % | 15 ms |
+| Mittel | 22 – 58 | 16 × 16 | ~20 % | 25 ms |
+| Schwer | 34 – 64 | 19 × 19 | ~30 % | 40 ms |
+| Experte | 44 – 74 | 23 × 23 | ~40 % | 70 ms |
+| Rätselheft (DIN A6) | 59 / 59 / 79 / **100** | bis 22 × 22 | ~12 % | ~1 s |
 
 ---
 
@@ -357,21 +358,61 @@ Schwierigkeit in das Band der gewünschten Stufe fällt, und passt dafür die
 Rastergrösse adaptiv an (zu schwer → luftigeres Raster, zu leicht →
 dichteres). Die Stufen-Auswahl im Heft ist damit eine echte Zielvorgabe.
 
-**Die Antwort auf die Kernfrage:** *Ja* – ein Rätsel mit 100 Inseln **kann**
-leicht sein. Es braucht nur ein entsprechend weiteres Raster. Auf einer
-DIN-A6-Seite ist das allerdings nicht darstellbar: bei maximal 37 Spalten
-bleiben die Knoten gerade noch lesbar, und dann ist ein 100-Inseln-Rätsel
-zwangsläufig „sehr schwer".
+#### Die Inselzahl gehört nicht mehr zur Auswahl
+
+Die Frage, ob man die Inselzahl überhaupt wählen lassen soll, hat sich mit
+der Messung erledigt: **nein**. Sie widerspricht der Stufe und ist
+redundant, denn die Stufe legt die maximal mögliche Inselzahl bereits fest.
+Das Heft leitet sie deshalb aus der Kalibrierung ab:
+
+| Stufe | Inseln je Rätsel | Zielband | gemessen |
+|---|---|---|---|
+| Leicht | 59 | 0 – 0,25 | 0,05 – 0,18 |
+| Mittel | 59 | 0,25 – 0,45 | 0,10 – 0,28 |
+| Schwer | 79 | 0,45 – 0,62 | 0,23 – 0,52 |
+| Experte | 100 (A6-Grenze) | 0,62 – 1 | 0,68 – 0,80 |
+
+#### Optimierung: mehr Inseln bei gleicher Schwierigkeit
+
+Die Fragestellung, ob die Parameter so optimiert werden können, dass mehr
+Inseln bei gleicher Stufe herauskommen, hat einen klaren Sieger: die
+**maximale Brückenlänge**. Längere Brücken verteilen die Inseln weiter
+über das Brett und erzeugen weniger zufällige Ausrichtungen – also weniger
+„Ablenk-Kanten" und damit weniger Mehrdeutigkeit.
+
+Gemessen am Zielband „leicht" (5 Versuche je Punkt):
+
+| maxExtra | Doppelbrücken | Brückenlänge | erreichte Inselzahl |
+|---|---|---|---|
+| 1 | 0 % | 3 Felder | 30 |
+| 1 | 0 % | 4 Felder | 60 |
+| 1 | 0 % | **6 Felder** | **85** |
+| 2 | 20 % | 6 Felder | 70 |
+| 3 | 20 % | 6 Felder | 85 |
+
+Mit Brücken über bis zu 6 Felder sind also **85 statt 30 Inseln** möglich –
+fast dreifach. Deshalb nutzen die Stufen jetzt `maxLen: 6` (Leicht/Mittel),
+5 (Schwer) und 4 (Experte, wo die Dichte die Härte steuert).
+
+Der Spielstand je Stufe:
+
+| Stufe | Inseln | Raster | Doppelbrücken | Brückenlänge |
+|---|---|---|---|---|
+| Leicht | 16 – 46 | 14 × 14 | 10 % | 6 |
+| Mittel | 22 – 58 | 16 × 16 | 20 % | 6 |
+| Schwer | 34 – 64 | 19 × 19 | 30 % | 5 |
+| Experte | 44 – 74 | 23 × 23 | 40 % | 4 |
+
+#### Die Antwort auf die Kernfrage
+
+*Ja* – ein Rätsel mit 100 Inseln **kann** leicht sein, es braucht nur ein
+entsprechend weiteres Raster. Auf einer DIN-A6-Seite ist das allerdings
+nicht darstellbar: bei höchstens 22 Spalten (Lesbarkeit) und 100 Inseln
+bleibt das Raster 22 × 22, und damit ist ein solches Rätsel zwangsläufig
+„sehr schwer" (gemessen 0,68 – 0,80).
 
 Deshalb weist das Heft darauf hin, wenn eine Kombination nicht erreichbar
-ist:
-
-> Ziel „Leicht" ist bei 100 Inseln nicht erreichbar (möglich ist 0,35–0,80)
-
-Der Bereich stammt aus der Kalibrierung: sie merkt sich je Inselzahl-Bündel,
-welche Schwierigkeiten tatsächlich vorkommen. Die Bänder der globalen Skala
-gelten für die Gesamtheit aller Rätsel – ein 40-Inseln-Rätsel ist prinzipiell
-nicht so schwer wie ein 100-Inseln.
+ist, und nennt die tatsächlich erreichte Spanne.
 
 Unter jedem Rätsel steht jetzt die **gemessene** Schwierigkeit, nicht die
 gewünschte:
