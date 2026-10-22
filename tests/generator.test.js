@@ -375,6 +375,22 @@ describe('generatePuzzle – Heft-Format (DIN A6)', () => {
     }
   });
 
+  test('gridLock hält die Rastergrösse fest', () => {
+    const puzzle = generatePuzzle({
+      difficulty: 'medium',
+      seed: 'HEFT-LOCK',
+      islands: 46,
+      format: BOOKLET_FORMAT,
+      keep: 1,
+      target: 'medium',
+      maxGridFactor: 484 / 46,
+      gridLock: { cols: 21, rows: 21 },
+    });
+    // Das Raster wird nach dem Beschneiden nie grösser als die Sperre.
+    assert.ok(puzzle.cols <= 21 && puzzle.rows <= 21, `${puzzle.cols}x${puzzle.rows}`);
+    assert.equal(puzzle.islands.length, 46);
+  });
+
   test('das Heft-Format passt auf eine A6-Seite', () => {
     const puzzle = generatePuzzle({
       difficulty: 'medium',

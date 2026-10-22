@@ -854,6 +854,9 @@ export const internals = {
  * @param {string} [options.target]      Gewünschte Schwierigkeitsstufe. Der
  *   Generator sucht dann ein Rätsel, dessen *gemessene* Schwierigkeit in
  *   das Band der Stufe fällt – und passt dafür die Rastergrösse an.
+ * @param {{cols:number, rows:number}} [options.gridLock]  Feste Rastergrösse.
+ *   Ist sie gesetzt, wird nicht mehr nachgeführt – so bleiben im Heft alle
+ *   Knoten gleich gross.
  */
 export function generatePuzzle({
   difficulty = 'medium',
@@ -863,6 +866,7 @@ export function generatePuzzle({
   keep = null,
   target = null,
   maxGridFactor = 60,
+  gridLock = null,
 } = {}) {
   const cfg = DIFFICULTIES[difficulty] ?? DIFFICULTIES.medium;
   const fmt = format ?? cfg;
@@ -941,9 +945,25 @@ export function generatePuzzle({
     // Mittelwert mehrerer Versuche herangezogen.
     const mid = (band[0] + band[1]) / 2;
     const maxFactor = maxGridFactor ?? 60;
+    const lock = gridLock && gridLock.cols > 0 && gridLock.rows > 0 ? gridLock : null;
     let factor = (fmt.cols * fmt.rows) / Math.max(1, islands);
 
-    for (let round = 0; round < 6; round++) {
+    if (lock) {
+      // Festes Raster: nur die Anordnung wird variiert. Mehr Versuche,
+      // weil ein einzelnes Raster leichter scheitert als ein freies.
+      for (let attempt = 0; attempt < 9; attempt++) {
+        const candidate = makeOne(lock.cols, lock.rows);
+        if (!candidate) continue;
+        const distance = bandDistance(candidate.difficulty, band);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = candidate;
+        }
+        if (distance === 0) break;
+      }
+    }
+
+    for (let round = 0; round < (lock ? 0 : 6); round++) {
       const [cols, rows] = gridFor(islands, factor);
       let sum = 0;
       let n = 0;

@@ -72,10 +72,10 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
   nebeneinander) richtet sich nach der Form des Rasters.
 * **Inseln pro Rätsel** ergeben sich automatisch aus der Schwierigkeit –
   gewählt wird jeweils die größtmögliche Anzahl, die den
-  Schwierigkeitsgrad noch erfüllt (59 / 59 / 79 / 100).
+  Schwierigkeitsgrad auf einer A6-Seite noch erfüllt (rund 30 / 46 / 65 / 100).
 * **Schwierigkeit als Zielvorgabe**: Der Generator sucht ein Raster, auf dem
-  das Rätsel *gemessen* in die gewählte Stufe fällt. Ist das bei der
-  gewählten Inselzahl nicht möglich, weist das Heft darauf hin.
+  das Rätsel *gemessen* in die gewählte Stufe fällt. Unter jedem Rätsel steht
+  die gemessene Stufe.
 * **Bis zu 100 Rätsel** pro Heft (frei wählbar, oder über die Presets
   8/20/50/100). Die Erzeugung läuft in Etappen, damit die Seite bedienbar
   bleibt. Ein Heft mit 100 Rätseln zu 100 Inseln braucht rund **2 Minuten**.
@@ -221,7 +221,7 @@ Aktueller Stand: **132 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 m
 | Mittel | 22 – 58 | 16 × 16 | ~20 % | 25 ms |
 | Schwer | 34 – 64 | 19 × 19 | ~30 % | 40 ms |
 | Experte | 44 – 74 | 23 × 23 | ~40 % | 70 ms |
-| Rätselheft (DIN A6) | 59 / 59 / 79 / **100** | bis 22 × 22 | ~12 % | ~1 s |
+| Rätselheft (DIN A6) | ~30 / 46 / 65 / **100** | bis 22 × 22 | ~12 % | ~1 s |
 
 ---
 
@@ -361,16 +361,29 @@ dichteres). Die Stufen-Auswahl im Heft ist damit eine echte Zielvorgabe.
 #### Die Inselzahl gehört nicht mehr zur Auswahl
 
 Die Frage, ob man die Inselzahl überhaupt wählen lassen soll, hat sich mit
-der Messung erledigt: **nein**. Sie widerspricht der Stufe und ist
-redundant, denn die Stufe legt die maximal mögliche Inselzahl bereits fest.
-Das Heft leitet sie deshalb aus der Kalibrierung ab:
+der Messung erledigt: **nein**. Sie widerspricht der Stufe. Das Heft handelt
+sie beim Erzeugen selbst aus – und zwar so, dass möglichst viele Inseln
+herauskommen, ohne den Schwierigkeitsgrad zu verfehlen:
 
-| Stufe | Inseln je Rätsel | Zielband | gemessen |
+1. Startwert ist die stufentypische Dichte auf einer A6-Seite.
+2. Reicht das Band nicht (zu hart), wird die Zahl gesenkt.
+3. Passt es, wird sie in 10-%-Schritten erhöht, solange das Band hält.
+
+Weil die Messung von Rätsel zu Rätsel streut, zählt der **Median aus drei
+Proberätseln** und es bleibt ein Puffer von 20 % zum oberen Bandrand. Ohne
+diesen Puffer würde ein einzelner Glückstreffer die Zahl nach oben ziehen –
+und die übrigen Rätsel des Hefts wären zu schwer.
+
+| Stufe | Inseln je Rätsel | Zielband | gemessen (Beispielheft) |
 |---|---|---|---|
-| Leicht | 59 | 0 – 0,25 | 0,05 – 0,18 |
-| Mittel | 59 | 0,25 – 0,45 | 0,10 – 0,28 |
-| Schwer | 79 | 0,45 – 0,62 | 0,23 – 0,52 |
-| Experte | 100 (A6-Grenze) | 0,62 – 1 | 0,68 – 0,80 |
+| Leicht | ~30–36 | 0 – 0,25 | 0,07 – 0,33 |
+| Mittel | ~46 | 0,25 – 0,45 | 0,31 – 0,37 |
+| Schwer | ~63–69 | 0,45 – 0,62 | 0,51 – 0,61 |
+| Experte | 100 (A6-Grenze) | 0,62 – 1 | 0,72 – 0,86 |
+
+Die Zahl hängt vom Seed ab: sie wird für jedes Heft neu ausgehandelt. Unter
+jedem Rätsel steht die *gemessene* Stufe, in der Fusszeile des Hefts, wie
+viele Rätsel das Zielband getroffen haben.
 
 #### Optimierung: mehr Inseln bei gleicher Schwierigkeit
 

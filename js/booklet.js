@@ -8,7 +8,7 @@ import { buildBoard } from './board.js';
 import { randomSeed } from './rng.js';
 import { boardToSvgElement, boardToSvgElementWithSolution, SVG_VIEW_PAD } from './svg.js';
 import { bestLayout, cellSizeMm, groupIntoPages } from './layout.js';
-import { LEVEL_BANDS, achievableRange, bucketFor, maxIslandsFor } from './difficulty.js';
+import { LEVEL_BANDS, achievableRange, bucketFor, maxIslandsFor, CELLS_PER_ISLAND } from './difficulty.js';
 import { CALIBRATION } from './data/difficulty.js';
 
 const $ = (id) => document.getElementById(id);
@@ -43,6 +43,9 @@ const MAX_COLS = 22;
 /** Höchstzahl an Inseln je Rätsel im Heft. */
 const MAX_ISLANDS = 100;
 
+/** Untergrenze: weniger Inseln als das wäre kein Hashi-Rätsel mehr. */
+const MIN_ISLANDS = 12;
+
 /** Deutsche Bezeichnungen -> interne Kennungen (für Links). */
 const LABEL_TO_ID = Object.fromEntries(
   Object.values(DIFFICULTIES).map((d) => [d.label.toLowerCase(), d.id]),
@@ -55,6 +58,7 @@ const state = {
   seed: randomSeed(),
   withSolutions: true,
   format: null, // Raster des Hefts (nach dem ersten Rätsel eingefroren)
+  islands: null, // ausgehandelte Inselzahl (null = noch nicht bestimmt)
   puzzles: [],
 };
 
@@ -63,16 +67,89 @@ const state = {
  * ------------------------------------------------------------------ */
 
 /**
- * Anzahl der Inseln je Rätsel.
+ * Obergrenze für die Inselzahl je Rätsel.
  *
- * Sie ergibt sich aus der gewünschten Schwierigkeitsstufe: die Stufe legt
- * fest, wie schwer ein Rätsel sein soll, und die Kalibrierung sagt, wie
- * viele Inseln dabei noch möglich sind. Eine eigene Auswahl der Inselzahl
- * wäre überflüssig – sie widerspräche der Stufe.
+ * Sie ergibt sich aus der Schwierigkeitsstufe: die Kalibrierung kennt je
+ * Inselzahl den tatsächlich erreichbaren Schwierigkeitsbereich.
  */
 function islandCount() {
   const max = maxIslandsFor(state.level, CALIBRATION) || 40;
-  return Math.min(max, MAX_ISLANDS);
+  return Math.max(MIN_ISLANDS, Math.min(max, MAX_ISLANDS));
+}
+
+/**
+ * Startwert für die Inselzahl: die stufentypische Dichte auf einer
+ * A6-Seite. Dieser Wert trifft das Band erfahrungsgemäss zuverlässig.
+ */
+function densityIslands() {
+  const cap = Math.floor(
+    (MAX_COLS * MAX_COLS) / (CELLS_PER_ISLAND[state.level] || 10),
+  );
+  return Math.max(MIN_ISLANDS, Math.min(islandCount(), cap));
+}
+
+/**
+ * Handelt die Inselzahl für das ganze Heft aus.
+ *
+ * Gesucht ist die grösste Inselzahl, deren Rätsel auf einer A6-Seite
+ * (höchstens `MAX_COLS` Spalten) das Band der Stufe noch zuverlässig
+ * treffen. Ausgegangen wird von der Dichte-Schätzung; danach wird die
+ * Zahl erhöht, solange der Median mehrerer Proberätsel im Band bleibt.
+ *
+ * Der Median ist nötig, weil die Messung je Rätsel streut: ein einzelner
+ * Glückstreffer würde die Zahl nach oben ziehen und die übrigen Rätsel
+ * des Hefts zu schwer machen. Zusätzlich bleibt ein Sicherheitsabstand
+ * zum oberen Bandrand.
+ *
+ * @returns {number} Inselzahl je Rätsel
+ */
+function negotiateIslands() {
+  const band = LEVEL_BANDS[state.level];
+  // 20 % des Bandes bleiben als Puffer zum oberen Rand.
+  const limit = band[1] - 0.2 * (band[1] - band[0]);
+
+  const medianScore = (islands) => {
+    const scores = [0, 1, 2]
+      .map(
+        (probe) =>
+          generatePuzzle({
+            difficulty: state.level,
+            seed: `${state.seed}-probe-${probe}`,
+            islands,
+            format: BOOKLET_FORMAT,
+            keep: 1,
+            target: state.level,
+            maxGridFactor: (MAX_COLS * MAX_COLS) / Math.max(1, islands),
+          }).difficultyScore,
+      )
+      .sort((a, b) => a - b);
+    return scores[1];
+  };
+  const passt = (islands) => {
+    const score = medianScore(islands);
+    return score >= band[0] && score <= limit;
+  };
+
+  let islands = densityIslands();
+
+  // Zu hart für die Seite: so weit senken, bis es passt.
+  for (let round = 0; round < 6; round++) {
+    if (passt(islands)) break;
+    const next = Math.max(MIN_ISLANDS, Math.round(islands * 0.92));
+    if (next === islands) break;
+    islands = next;
+  }
+
+  // Nach oben tasten: so viele Inseln wie möglich.
+  const max = islandCount();
+  for (let round = 0; round < 4; round++) {
+    const next = Math.min(max, Math.round(islands * 1.1));
+    if (next === islands) break;
+    if (!passt(next)) break;
+    islands = next;
+  }
+
+  return islands;
 }
 
 /**
@@ -88,19 +165,36 @@ function islandCount() {
  */
 function makePuzzle(index) {
   const seed = `${state.seed}-${index + 1}`;
+  // Die Inselzahl wird einmal für das ganze Heft ausgehandelt.
+  if (state.islands == null) state.islands = negotiateIslands();
+  const islands = state.islands;
   const format = state.format ?? BOOKLET_FORMAT;
-  const puzzle = generatePuzzle({
+  const options = {
     difficulty: state.level,
     seed,
-    islands: islandCount(),
+    islands,
     format,
     keep: 1,
     target: state.level,
     // Das Raster darf nicht so weit werden, dass die Seite unlesbar wird.
-    maxGridFactor: (MAX_COLS * MAX_COLS) / Math.max(1, islandCount()),
-  });
+    maxGridFactor: (MAX_COLS * MAX_COLS) / Math.max(1, islands),
+    // Ab dem zweiten Rätsel steht das Raster fest – so bleiben alle Knoten
+    // im Heft exakt gleich gross.
+    gridLock: state.format ?? null,
+  };
+  let puzzle = generatePuzzle(options);
+  // Notfall: im festen Raster ist das Wachstum gescheitert (der Generator
+  // liefert dann ein viel kleineres Ersatzrätsel). Dann lieber ein anderes
+  // Raster als ein zu leichtes Rätsel.
+  if (puzzle.islands.length !== islands && options.gridLock) {
+    puzzle = generatePuzzle({ ...options, gridLock: null });
+  }
   if (!state.format) {
-    state.format = { ...BOOKLET_FORMAT, cols: puzzle.cols, rows: puzzle.rows };
+    state.format = {
+      ...BOOKLET_FORMAT,
+      cols: puzzle.cols,
+      rows: puzzle.rows,
+    };
   }
   const board = buildBoard(
     puzzle.islands.map((isl) => ({ id: isl.id, r: isl.r, c: isl.c, num: isl.num })),
@@ -125,7 +219,10 @@ function miniPuzzle(puzzle, index, { solution = false, layout = 'row', count = 1
   const article = document.createElement('article');
   article.className = 'mini';
 
-  const cellMm = cellSizeMm(puzzle, layout, count);
+  // Massgeblich ist das eingefrorene Heft-Raster, nicht das (nach dem
+  // Beschneiden evtl. kleinere) Raster des einzelnen Rätsels. Dadurch
+  // haben alle Knoten im Heft exakt dieselbe Grösse.
+  const cellMm = cellSizeMm(state.format ?? puzzle, layout, count);
   const widthMm = (puzzle.cols + 2 * SVG_VIEW_PAD) * cellMm;
   const heightMm = (puzzle.rows + 2 * SVG_VIEW_PAD) * cellMm;
 
@@ -239,15 +336,16 @@ function render() {
 
   // Ist das Ziel mit dieser Inselzahl überhaupt erreichbar?
   // Entscheidend ist, ob sich die Bänder überschneiden.
-  const range = achievableRange(CALIBRATION.buckets[bucketFor(islandCount())]);
+  const count = state.islands ?? islandCount();
+  const range = achievableRange(CALIBRATION.buckets[bucketFor(count)]);
   const erreichbar = band[0] <= range[1] && band[1] >= range[0];
   const hinweis = erreichbar
     ? ''
-    : ` · Ziel „${target}" ist bei ${islandCount()} Inseln nicht erreichbar ` +
+    : ` · Ziel „${target}" ist bei ${count} Inseln nicht erreichbar ` +
       `(möglich ist ${range[0].toFixed(2)}–${range[1].toFixed(2)})`;
 
   ui.info.textContent =
-    `${puzzles.length} Rätsel · ${puzzles[0]?.islands.length ?? islandCount()} Inseln · ` +
+    `${puzzles.length} Rätsel · ${puzzles[0]?.islands.length ?? count} Inseln · ` +
     `Ziel „${target}" · gemessen Ø ${avgDifficulty.toFixed(2)} ` +
     `(${imBand}/${puzzles.length} im Zielband) · ` +
     `${pages.length} Seiten` +
@@ -381,6 +479,8 @@ function buildDifficultyButtons() {
 function markDirty() {
   // Bei geänderten Einstellungen muss das Raster neu bestimmt werden.
   state.format = null;
+  // Die Inselzahl wird beim Erzeugen neu ausgehandelt.
+  state.islands = null;
   if (!state.puzzles.length) return;
   ui.info.textContent =
     'Einstellungen geändert – bitte "Heft erzeugen" klicken, um sie anzuwenden.';
