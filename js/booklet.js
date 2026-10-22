@@ -1,6 +1,7 @@
 /**
- * Rätselheft-Generator: erzeugt mehrere Hashi-Rätsel und setzt sie zu
- * Druckbögen im DIN-A6-Format zusammen (1, 2 oder 4 Rätsel pro Seite).
+ * Rätselheft-Generator: erzeugt mehrere Hashi-Rätsel, setzt sie auf
+ * DIN-A6-Seiten (1 oder 2 Rätsel) und ordnet diese als Heft auf
+ * DIN-A4-Bögen an (Vorder- und Rückseite, zum Schneiden und Falten).
  */
 
 import { generatePuzzle, DIFFICULTIES, DIFFICULTY_IDS, BOOKLET_FORMAT } from './generator.js';
@@ -8,6 +9,7 @@ import { buildBoard } from './board.js';
 import { randomSeed } from './rng.js';
 import { boardToSvgElement, boardToSvgElementWithSolution, SVG_VIEW_PAD } from './svg.js';
 import { bestLayout, cellSizeMm, groupIntoPages } from './layout.js';
+import { impose } from './impose.js';
 import { LEVEL_BANDS, achievableRange, bucketFor, maxIslandsFor, CELLS_PER_ISLAND } from './difficulty.js';
 import { CALIBRATION } from './data/difficulty.js';
 
@@ -239,9 +241,15 @@ function miniPuzzle(puzzle, index, { solution = false, layout = 'row', count = 1
     bridgeWidth: cellMm * 0.08,
     bridgeOffset: cellMm * 0.09,
     islandStrokeWidth: cellMm * 0.05,
-    gridWidth: cellMm * 0.022,
-    gridDash: `${(cellMm * 0.05).toFixed(3)} ${(cellMm * 0.22).toFixed(3)}`,
-    frameWidth: cellMm * 0.04,
+    // Hilfsraster: im Druck deutlich kräftiger als am Bildschirm, sonst
+    // verschwindet die dünne Punktlinie im Papierweiß.
+    gridColor: '#6b7280',
+    gridOpacity: 0.7,
+    gridWidth: cellMm * 0.035,
+    gridDash: `${(cellMm * 0.09).toFixed(3)} ${(cellMm * 0.13).toFixed(3)}`,
+    frameColor: '#374151',
+    frameOpacity: 0.85,
+    frameWidth: cellMm * 0.06,
   };
   const svg = solution
     ? // Bei Lösungsseiten werden die Inseln nicht durchgestrichen –
@@ -276,52 +284,163 @@ function miniPuzzle(puzzle, index, { solution = false, layout = 'row', count = 1
   return article;
 }
 
-/** Erzeugt einen Druckbogen (A6) mit den übergebenen Rätseln. */
-function buildSheet(puzzles, { solution = false, firstIndex = 0 } = {}) {
-  const section = document.createElement('section');
-  section.className = 'sheet';
+/**
+ * Erzeugt eine A6-Seite mit den übergebenen Rätseln.
+ *
+ * `page` ist ein Eintrag der Seitenliste (`{ no, puzzles, solution,
+ * firstIndex }`) oder `null` für eine leere Seite.
+ */
+function buildPage(page) {
+  const seite = document.createElement('div');
+  seite.className = 'seite';
 
-  const layout = bestLayout(puzzles);
+  if (!page) {
+    seite.classList.add('seite--leer');
+    const hint = document.createElement('span');
+    hint.className = 'seite__leer';
+    hint.textContent = 'leer';
+    seite.appendChild(hint);
+    return seite;
+  }
+
+  // Seitenzahl nur in der Bildschirmvorschau – im Druck stört sie.
+  const nr = document.createElement('span');
+  nr.className = 'seite__nr';
+  nr.textContent = `S. ${page.no}`;
+  seite.appendChild(nr);
+
+  const layout = bestLayout(page.puzzles);
   const grid = document.createElement('div');
-  grid.className = 'sheet__grid';
-  grid.dataset.per = String(puzzles.length);
+  grid.className = 'seite__grid';
+  grid.dataset.per = String(page.puzzles.length);
   grid.dataset.layout = layout;
 
-  puzzles.forEach((puzzle, i) => {
+  page.puzzles.forEach((puzzle, i) => {
     grid.appendChild(
-      miniPuzzle(puzzle, firstIndex + i, { solution, layout, count: puzzles.length }),
+      miniPuzzle(puzzle, page.firstIndex + i, {
+        solution: page.solution,
+        layout,
+        count: page.puzzles.length,
+      }),
     );
   });
 
-  section.appendChild(grid);
+  seite.appendChild(grid);
+  return seite;
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * Schnitt- und Faltkanten eines Bogens.
+ *
+ * Durchgezogen = schneiden, gestrichelt = falten. Gezeichnet wird in
+ * Bogenkoordinaten (1 Einheit = 1 mm), damit die Linien unabhängig von
+ * der Papiergrösse exakt auf den Kanten liegen. Die Beschriftungen
+ * liegen im Randbereich der Seiten, damit sie kein Rätsel überdecken.
+ */
+function foldAndCutMarks() {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'marken');
+  svg.setAttribute('viewBox', '0 0 210 297');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('aria-hidden', 'true');
+
+  // Schnitt in der Bogenmitte: trennt Aussen- und Innenlage.
+  const cut = document.createElementNS(SVG_NS, 'line');
+  cut.setAttribute('class', 'marke marke--schnitt');
+  cut.setAttribute('x1', '0');
+  cut.setAttribute('y1', '148.5');
+  cut.setAttribute('x2', '210');
+  cut.setAttribute('y2', '148.5');
+
+  // Falte: teilt jede Hälfte in zwei A6-Seiten.
+  const fold = document.createElementNS(SVG_NS, 'line');
+  fold.setAttribute('class', 'marke marke--falt');
+  fold.setAttribute('x1', '105');
+  fold.setAttribute('y1', '0');
+  fold.setAttribute('x2', '105');
+  fold.setAttribute('y2', '297');
+
+  svg.append(cut, fold);
+
+  const cutText = document.createElement('span');
+  cutText.className = 'marke__text marke__text--schnitt';
+  cutText.textContent = 'schneiden';
+
+  const foldText = document.createElement('span');
+  foldText.className = 'marke__text marke__text--falt';
+  foldText.textContent = 'falten';
+
+  return [svg, cutText, foldText];
+}
+
+/**
+ * Baut eine Bogenhälfte (Vorder- oder Rückseite) als A4-Blatt mit vier
+ * A6-Seiten in Heft-Reihenfolge.
+ */
+function buildSheetElement(sheet, side) {
+  const section = document.createElement('section');
+  section.className = 'bogen';
+  section.dataset.side = side;
+
+  const label = document.createElement('p');
+  label.className = 'bogen__label';
+  label.textContent = `Bogen ${sheet.index + 1} · ${
+    side === 'front' ? 'Vorderseite' : 'Rückseite'
+  }`;
+
+  const paper = document.createElement('div');
+  paper.className = 'bogen__paper';
+  paper.dataset.side = side;
+  // Reihenfolge: oben-links, oben-rechts, unten-links, unten-rechts.
+  for (const page of sheet[side]) paper.append(buildPage(page));
+  paper.append(...foldAndCutMarks());
+
+  section.append(label, paper);
   return section;
+}
+
+/**
+ * Seitenliste des Hefts in Leserichtung: erst die Rätsel, danach die
+ * Lösungen. Jede Seite kennt ihre Nummer und den Startindex der Rätsel.
+ */
+function bookletPages(pages) {
+  const out = [];
+  let puzzleIndex = 0;
+  for (const page of pages) {
+    out.push({ no: out.length + 1, puzzles: page, solution: false, firstIndex: puzzleIndex });
+    puzzleIndex += page.length;
+  }
+  if (state.withSolutions) {
+    puzzleIndex = 0;
+    for (const page of pages) {
+      out.push({ no: out.length + 1, puzzles: page, solution: true, firstIndex: puzzleIndex });
+      puzzleIndex += page.length;
+    }
+  }
+  return out;
 }
 
 function render() {
   const puzzles = state.puzzles;
   const pages = groupIntoPages(puzzles, state.perPage);
-  const sheets = [];
+  const list = bookletPages(pages);
+  const { sheets, pageCount } = impose(list);
 
-  // Die Nummerierung läuft durchlaufend über das ganze Heft – unabhängig
-  // davon, wie viele Rätsel auf einer Seite stehen.
-  let puzzleIndex = 0;
-  for (const page of pages) {
-    sheets.push(buildSheet(page, { firstIndex: puzzleIndex }));
-    puzzleIndex += page.length;
+  // Immer Vorder- und Rückseite eines Bogens hintereinander: so kann der
+  // Bogen im Duplexdruck direkt gewendet werden.
+  const druckbogen = [];
+  for (const sheet of sheets) {
+    druckbogen.push(buildSheetElement(sheet, 'front'));
+    druckbogen.push(buildSheetElement(sheet, 'back'));
   }
 
-  if (state.withSolutions) {
-    puzzleIndex = 0;
-    for (const page of pages) {
-      sheets.push(buildSheet(page, { solution: true, firstIndex: puzzleIndex }));
-      puzzleIndex += page.length;
-    }
-  }
-
-  ui.sheets.replaceChildren(...sheets);
+  ui.sheets.replaceChildren(...druckbogen);
 
   const singles = pages.filter((p) => p.length === 1).length;
   const doubles = pages.length - singles;
+  const blank = pageCount - list.length;
 
   ui.info.dataset.dirty = '';
   const avgDifficulty =
@@ -344,14 +463,37 @@ function render() {
     : ` · Ziel „${target}" ist bei ${count} Inseln nicht erreichbar ` +
       `(möglich ist ${range[0].toFixed(2)}–${range[1].toFixed(2)})`;
 
-  ui.info.textContent =
-    `${puzzles.length} Rätsel · ${puzzles[0]?.islands.length ?? count} Inseln · ` +
-    `Ziel „${target}" · gemessen Ø ${avgDifficulty.toFixed(2)} ` +
-    `(${imBand}/${puzzles.length} im Zielband) · ` +
-    `${pages.length} Seiten` +
-    (singles ? ` (${doubles} mit 2, ${singles} mit 1 Rätsel)` : ' mit je 2 Rätseln') +
-    (state.withSolutions ? ` + ${pages.length} Lösungsseiten` : '') +
-    ` · DIN A6 · Seed ${state.seed}${hinweis}`;
+  const teile = [
+    `${puzzles.length} Rätsel`,
+    `${puzzles[0]?.islands.length ?? count} Inseln`,
+    `Ziel „${target}"`,
+    `gemessen Ø ${avgDifficulty.toFixed(2)} (${imBand}/${puzzles.length} im Zielband)`,
+    `${pages.length} Rätselseiten` +
+      (singles ? ` (${doubles} mit 2, ${singles} mit 1 Rätsel)` : ' mit je 2 Rätseln') +
+      (state.withSolutions ? ` + ${pages.length} Lösungsseiten` : ''),
+  ];
+  if (blank) teile.push(`${blank} leere Seiten`);
+  teile.push(`${pageCount} Seiten A6`, `${sheets.length} A4-Bogen beidseitig`);
+  teile.push(`Seed ${state.seed}`);
+
+  ui.info.textContent = teile.join(' · ') + hinweis;
+
+  fitPreview();
+}
+
+/**
+ * Skaliert die Vorschau so, dass ein A4-Bogen in die Spalte passt.
+ *
+ * Gedruckt wird immer in Originalgrösse – die Skalierung betrifft nur die
+ * Bildschirmvorschau (sonst müsste man seitwärts scrollen).
+ */
+function fitPreview() {
+  const width = ui.sheets.clientWidth;
+  if (!width) return;
+  // 210 mm bei 96 dpi
+  const paper = (210 * 96) / 25.4;
+  const zoom = Math.min(1, (width - 4) / paper);
+  ui.sheets.style.setProperty('--bogen-zoom', zoom.toFixed(3));
 }
 
 /* ------------------------------------------------------------------ *
@@ -531,6 +673,7 @@ function setupEvents() {
   ui.generateBtn.addEventListener('click', generate);
   ui.copyBtn.addEventListener('click', copyLink);
   ui.printBtn.addEventListener('click', () => window.print());
+  window.addEventListener('resize', fitPreview);
 
   document.addEventListener('keydown', (event) => {
     const target = event.target;

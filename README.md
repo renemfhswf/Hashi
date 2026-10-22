@@ -19,7 +19,7 @@ Abhängigkeiten.
 | **Seed & Teilen** | Gleicher Seed + Schwierigkeit = gleiches Rätsel. Per Link teilbar |
 | **Spielkomfort** | Undo/Redo, Hinweis, Lösung prüfen, Lösung einblenden, Timer |
 | **Drucken** | Einzelnes Rätsel als sauberes A4-Blatt ausgeben |
-| **Rätselheft** | Bis zu 100 Rätsel im DIN-A6-Format (1–2 pro Seite, gemischte Grade) |
+| **Rätselheft** | Bis zu 100 Rätsel im DIN-A6-Format (1–2 pro Seite), auf A4-Bögen zum Schneiden und Falten |
 | **Ohne Build** | Reines JavaScript (ES-Module) – läuft direkt aus dem Repository |
 | **Ohne Dependencies** | Kein npm-Paket, kein Framework, kein Bundler |
 | **Hell/Dunkel** | Folgt der Systemeinstellung, manuell umschaltbar |
@@ -88,19 +88,37 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
   Nummer läuft durchlaufend über das ganze Heft (1, 2, 3 …) und passt zur
   gleich nummerierten Lösungsseite.
 
-Beim Drucken bitte im Druckdialog **DIN A6** und **100 % Skalierung** wählen
-(das Seitenformat steckt bereits im CSS, manche Browser übernehmen es aber
-nicht).
+### Vom A4-Bogen zum A6-Heft
+
+Gedruckt wird auf **DIN A4**, beidseitig. Ein Bogen trägt auf jeder Seite vier
+A6-Seiten; jede Bogenhälfte ist eine Lage des Hefts. Nach dem Druck:
+
+1. Bogen an der **durchgezogenen Linie** in der Mitte schneiden → zwei
+   A5-Streifen.
+2. Beide Streifen an der **gestrichelten Linie** falten, bedruckte Seite
+   nach aussen → zwei Lagen mit je vier A6-Seiten.
+3. Die Innenlage in die Aussenlage legen, im Falz klammern. Bei mehreren
+   Bögen kommen die Streifen in Bogenreihenfolge nach innen (Bogen 1 aussen).
+
+Das ergibt ein A6-Heft mit **acht Seiten pro Bogen**. Die Seitenreihenfolge
+setzt das Modul [`js/impose.js`](js/impose.js) – Seite 1 liegt aussen rechts,
+Seite 2 auf der Rückseite oben links usw. Leere Seiten werden ergänzt, bis das
+Heft auf volle Bögen kommt.
+
+Im Druckdialog **beidseitig** (Duplex, „lange Kante") und **100 % Skalierung**
+wählen. Gestrichelt = falten, durchgezogen = schneiden; die Kanten sind auf
+jedem Bogen beschriftet.
 
 > **Hinweis zur Reihenfolge der Stylesheets:** `booklet.css` wird nach
-> `styles.css` geladen. Nur so gewinnt die `@page`-Regel für DIN A6 gegen die
+> `styles.css` geladen. Nur so gewinnt die `@page`-Regel für DIN A4 gegen die
 > A4-Regel des Spiels. Die Druckregel des Spiels ist zusätzlich auf
 > `.app--game` eingegrenzt, damit das Heft (gleiche Grundklasse `.app`)
 > beim Drucken nicht verschwindet.
 
 Die Aufteilung rechnet das Modul [`js/layout.js`](js/layout.js) aus – es
 prüft für jedes Rätsel, wie gross eine Rasterzelle in Millimetern würde, und
-verhindert so unleserlich kleine Ausgaben.
+verhindert so unleserlich kleine Ausgaben. Die Bogen-Imposition übernimmt
+[`js/impose.js`](js/impose.js).
 
 ---
 
@@ -209,9 +227,11 @@ Getestet werden:
 * **Spielzustand** – Brücken setzen, Undo/Redo, Hinweise, Prüfung, Sieg.
 * **Heft-Aufteilung** – höchstens zwei Rätsel pro Seite, automatische
   Reduktion auf eines bei zu grossen Rastern.
+* **Bogen-Imposition** – acht Seiten pro A4-Bogen, verschachtelte
+  Reihenfolge, leere Seiten werden aufgefüllt.
 * **Zufallsgenerator** – Determinismus, Wertebereiche, Verteilungen.
 
-Aktueller Stand: **132 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 ms.
+Aktueller Stand: **164 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 ms.
 
 ### Schwierigkeitsgrade
 
@@ -546,13 +566,14 @@ hashi/
 ├── favicon.svg
 ├── css/
 │   ├── styles.css             # Design, Hell/Dunkel, Responsive, Druck
-│   └── booklet.css             # Layout der A6-Druckbögen
+│   └── booklet.css            # Layout der A6-Seiten und A4-Bögen
 ├── js/
 │   ├── app.js                 # Spiellogik, Verlauf, Timer, Speichern, Drucken
 │   ├── board.js               # Brettmodell: Kanten, Kreuzungen, Nachbarschaft
 │   ├── difficulty.js          # Schwierigkeitsmessung (Metriken + Normierung)
 │   ├── game.js                # Spielzustand: Brücken, Undo/Redo, Hinweise
 │   ├── generator.js           # Rätselgenerator
+│   ├── impose.js              # Bogen-Imposition (A6-Seiten auf A4-Bögen)
 │   ├── layout.js              # Seitenaufteilung des Rätselhefts
 │   ├── render.js              # Canvas-Renderer + Trefferprüfung
 │   ├── svg.js                 # SVG-Renderer (Druck & Heft)

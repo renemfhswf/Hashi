@@ -60,44 +60,146 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 22px;
+  gap: 26px;
+  overflow-x: auto;
+  padding-bottom: 4px;
 }
 
-.sheet {
-  width: 105mm;
-  height: 148mm;
+/* Ein DIN-A4-Bogen mit vier DIN-A6-Seiten (2 × 2). */
+.bogen {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   flex: none;
+}
+
+.bogen__label {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.bogen__paper {
+  --seite-w: 105mm;
+  --seite-h: 148.5mm;
+  position: relative;
+  flex: none;
+  width: calc(var(--seite-w) * 2);
+  height: calc(var(--seite-h) * 2);
+  /* Nur für die Vorschau: gedruckt wird immer 1:1. */
+  zoom: var(--bogen-zoom, 1);
+  display: grid;
+  grid-template-columns: var(--seite-w) var(--seite-w);
+  grid-template-rows: var(--seite-h) var(--seite-h);
   background: #fff;
   color: #000;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  box-shadow: var(--shadow);
-  padding: 7mm;
   overflow: hidden;
-  display: flex;
+  box-shadow: var(--shadow);
 }
 
-.sheet__grid {
+/* Eine Heftseite (DIN A6). */
+.seite {
+  position: relative;
+  padding: 6mm;
+  display: flex;
+  overflow: hidden;
+}
+
+.seite--leer {
+  background: #fff;
+}
+
+/* Hinweis auf leere Seiten – nur in der Vorschau. */
+.seite__leer {
+  margin: auto;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+}
+
+/* Seitenzahl der Vorschau – im Druck ausgeblendet. */
+.seite__nr {
+  position: absolute;
+  top: 1.5mm;
+  right: 2.5mm;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #c3c9d4;
+}
+
+.seite__grid {
   display: grid;
   gap: 4mm;
   width: 100%;
   height: 100%;
 }
 
-.sheet__grid[data-per="1"] {
+.seite__grid[data-per="1"] {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
 }
 
 /* Zwei Rätsel: je nach Rasterform untereinander oder nebeneinander. */
-.sheet__grid[data-per="2"][data-layout="row"] {
+.seite__grid[data-per="2"][data-layout="row"] {
   grid-template-columns: 1fr;
   grid-template-rows: repeat(2, 1fr);
 }
 
-.sheet__grid[data-per="2"][data-layout="col"] {
+.seite__grid[data-per="2"][data-layout="col"] {
   grid-template-columns: repeat(2, 1fr);
   grid-template-rows: 1fr;
+}
+
+/* -------------------------------------------------- Schnitt- und Faltkanten */
+
+/* Schnitt durchgezogen, Falte gestrichelt. Gezeichnet als SVG, damit die
+   Linien auch dann drucken, wenn der Browser keine Hintergründe druckt. */
+.marken {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.marke--schnitt {
+  stroke: #111;
+  stroke-width: 0.35;
+}
+
+.marke--falt {
+  stroke: #111;
+  stroke-width: 0.35;
+  stroke-dasharray: 3 3;
+}
+
+/* Beschriftung der Kanten: liegt im Randbereich der Seiten. */
+.marke__text {
+  position: absolute;
+  font-size: 5.5pt;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6b7280;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Über der Schnittlinie, mittig in der oberen linken Seite … */
+.marke__text--schnitt {
+  top: calc(var(--seite-h) - 3.9mm);
+  left: calc(var(--seite-w) / 2);
+  transform: translateX(-50%);
+}
+
+/* … und rechts der Faltlinie, in der unteren rechten Seite. */
+.marke__text--falt {
+  top: calc(var(--seite-h) + 2mm);
+  left: calc(var(--seite-w) + 1.5mm);
 }
 
 /* --------------------------------------------------------- Einzelnes Rätsel */
@@ -194,16 +296,18 @@
 /* ----------------------------------------------------------------- Druck */
 
 /* Wichtig: Diese Datei wird nach styles.css geladen. Die @page-Regel für
-   DIN A6 muss damit nach der A4-Regel aus styles.css kommen, sonst
-   gewinnt das Spiel-Format. */
+   DIN A4 muss damit nach der A4-Regel aus styles.css kommen, sonst gewinnt
+   das Spiel-Format. */
 @media print {
   @page {
-    size: A6 portrait;
+    size: A4 portrait;
     margin: 0;
   }
 
   html,
   body {
+    margin: 0;
+    padding: 0;
     background: #fff !important;
   }
 
@@ -228,24 +332,37 @@
 
   .sheets {
     display: block;
-    gap: 0;
+    overflow: visible;
+    padding: 0;
   }
 
-  .sheet {
-    width: 105mm;
-    height: 147.6mm;
-    margin: 0;
-    padding: 6mm;
-    border: 0;
-    border-radius: 0;
+  .bogen {
+    display: block;
+  }
+
+  .bogen__label {
+    display: none;
+  }
+
+  .bogen__paper {
+    /* Etwas kleiner als A4, damit der Browser keine leere Folgeseite
+       anlegt. Die Kanten liegen damit bei 148,2 mm statt 148,5 mm –
+       auf das Falten hat das keinen Einfluss. */
+    --seite-h: 148.2mm;
+    zoom: 1;
     box-shadow: none;
     break-after: page;
     page-break-after: always;
   }
 
-  .sheet:last-child {
+  .bogen:last-child .bogen__paper {
     break-after: auto;
     page-break-after: auto;
+  }
+
+  .seite__nr,
+  .seite__leer {
+    display: none;
   }
 }
 
