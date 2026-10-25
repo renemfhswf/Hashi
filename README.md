@@ -19,7 +19,7 @@ Abhängigkeiten.
 | **Seed & Teilen** | Gleicher Seed + Schwierigkeit = gleiches Rätsel. Per Link teilbar |
 | **Spielkomfort** | Undo/Redo, Hinweis, Lösung prüfen, Lösung einblenden, Timer |
 | **Drucken** | Einzelnes Rätsel als sauberes A4-Blatt ausgeben |
-| **Rätselheft** | Bis zu 100 Rätsel im DIN-A6-Format (1–2 pro Seite), auf A4-Bögen zum Schneiden und Falten |
+| **Rätselheft** | Bis zu 100 Rätsel im DIN-A5-Format (ein Rätsel pro Seite), auf A4-Bögen zum Falten |
 | **Ohne Build** | Reines JavaScript (ES-Module) – läuft direkt aus dem Repository |
 | **Ohne Dependencies** | Kein npm-Paket, kein Framework, kein Bundler |
 | **Hell/Dunkel** | Folgt der Systemeinstellung, manuell umschaltbar |
@@ -57,7 +57,7 @@ Hilfslinien und Rahmen sowie Platz für Name und Datum. Die Brücken des
 Spielers werden dabei **nicht** gedruckt – das Blatt ist eine frische
 Kopie des Rätsels.
 
-### Rätselheft (DIN A6)
+### Rätselheft (DIN A5)
 
 Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
 
@@ -65,14 +65,11 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
   erzeugt. Erst der Knopf *„Heft erzeugen"* startet die Erzeugung; alle
   anderen Schalter verändern nur die Einstellungen. Die Vorschau meldet,
   wenn die Einstellungen veraltet sind.
-* **1 oder 2 Rätsel pro Seite** – nie mehr als zwei, damit die Zahlen
-  lesbar bleiben.
-* **Automatische Anpassung**: sind die Raster zu gross, wird automatisch nur
-  **ein** Rätsel pro Seite gesetzt. Die Anordnung (untereinander oder
-  nebeneinander) richtet sich nach der Form des Rasters.
+* **Ein Rätsel pro Seite**: Jede Heftseite ist DIN A5 gross – das Rätsel
+  füllt sie fast aus und bleibt dadurch auch im Druck gut lesbar.
 * **Inseln pro Rätsel** ergeben sich automatisch aus der Schwierigkeit –
   gewählt wird jeweils die größtmögliche Anzahl, die den
-  Schwierigkeitsgrad auf einer A6-Seite noch erfüllt (rund 30 / 46 / 65 / 100).
+  Schwierigkeitsgrad auf einer A5-Seite noch erfüllt (rund 30 / 46 / 65 / 100).
 * **Schwierigkeit als Zielvorgabe**: Der Generator sucht ein Raster, auf dem
   das Rätsel *gemessen* in die gewählte Stufe fällt. Unter jedem Rätsel steht
   die gemessene Stufe.
@@ -88,37 +85,34 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
   Nummer läuft durchlaufend über das ganze Heft (1, 2, 3 …) und passt zur
   gleich nummerierten Lösungsseite.
 
-### Vom A4-Bogen zum A6-Heft
+### Vom A4-Bogen zum A5-Heft
 
-Gedruckt wird auf **DIN A4**, beidseitig. Ein Bogen trägt auf jeder Seite vier
-A6-Seiten; jede Bogenhälfte ist eine Lage des Hefts. Nach dem Druck:
+Gedruckt wird auf **DIN A4 quer**, beidseitig. Ein Bogen trägt auf jeder
+Blattseite zwei A5-Seiten und ergibt nach dem Falten **vier Seiten**. Nach
+dem Druck:
 
-1. Bogen an der **durchgezogenen Linie** in der Mitte schneiden → zwei
-   A5-Streifen.
-2. Beide Streifen an der **gestrichelten Linie** falten, bedruckte Seite
-   nach aussen → zwei Lagen mit je vier A6-Seiten.
-3. Die Innenlage in die Aussenlage legen, im Falz klammern. Bei mehreren
-   Bögen kommen die Streifen in Bogenreihenfolge nach innen (Bogen 1 aussen).
+1. Bogen an der **gestrichelten Linie** in der Mitte falten, bedruckte Seite
+   nach aussen.
+2. Im Falz klammern. Bei mehreren Bögen kommen sie in Bogenreihenfolge
+   ineinander (Bogen 1 aussen).
 
-Das ergibt ein A6-Heft mit **acht Seiten pro Bogen**. Die Seitenreihenfolge
-setzt das Modul [`js/impose.js`](js/impose.js) – Seite 1 liegt aussen rechts,
-Seite 2 auf der Rückseite oben links usw. Leere Seiten werden ergänzt, bis das
-Heft auf volle Bögen kommt.
+Schneiden ist nicht nötig. Die Seitenreihenfolge setzt das Modul
+[`js/impose.js`](js/impose.js) – Seite 1 liegt aussen rechts, die beiden
+Innenseiten auf der Rückseite, Seite 4 aussen links. Leere Seiten werden
+ergänzt, bis das Heft auf volle Bögen kommt.
 
-Im Druckdialog **beidseitig** (Duplex, „lange Kante") und **100 % Skalierung**
-wählen. Gestrichelt = falten, durchgezogen = schneiden; die Kanten sind auf
-jedem Bogen beschriftet.
+Im Druckdialog **beidseitig** (Duplex, „kurze Kante"), **DIN A4 quer** und
+**100 % Skalierung** wählen. Die Faltkante ist auf jedem Bogen beschriftet.
 
 > **Hinweis zur Reihenfolge der Stylesheets:** `booklet.css` wird nach
-> `styles.css` geladen. Nur so gewinnt die `@page`-Regel für DIN A4 gegen die
-> A4-Regel des Spiels. Die Druckregel des Spiels ist zusätzlich auf
+> `styles.css` geladen. Nur so gewinnt die `@page`-Regel für DIN A4 quer
+> gegen die A4-Regel des Spiels. Die Druckregel des Spiels ist zusätzlich auf
 > `.app--game` eingegrenzt, damit das Heft (gleiche Grundklasse `.app`)
 > beim Drucken nicht verschwindet.
 
-Die Aufteilung rechnet das Modul [`js/layout.js`](js/layout.js) aus – es
-prüft für jedes Rätsel, wie gross eine Rasterzelle in Millimetern würde, und
-verhindert so unleserlich kleine Ausgaben. Die Bogen-Imposition übernimmt
-[`js/impose.js`](js/impose.js).
+Die Seitengrösse rechnet das Modul [`js/layout.js`](js/layout.js) aus – es
+bestimmt aus der nutzbaren Fläche einer A5-Seite die Rasterzelle in
+Millimetern. Die Bogen-Imposition übernimmt [`js/impose.js`](js/impose.js).
 
 ---
 
@@ -230,22 +224,22 @@ Getestet werden:
 * **Solver** – korrekte Lösung, Erkennen von Mehrdeutigkeit und von
   unlösbaren Brettern.
 * **Spielzustand** – Brücken setzen, Undo/Redo, Hinweise, Prüfung, Sieg.
-* **Heft-Aufteilung** – höchstens zwei Rätsel pro Seite, automatische
-  Reduktion auf eines bei zu grossen Rastern.
-* **Bogen-Imposition** – acht Seiten pro A4-Bogen, verschachtelte
+* **Heft-Aufteilung** – genau ein Rätsel pro A5-Seite, Rasterzelle in
+  Millimetern.
+* **Bogen-Imposition** – vier Seiten pro A4-Bogen (quer), verschachtelte
   Reihenfolge, leere Seiten werden aufgefüllt.
 * **Spiel-Oberfläche** – alle Knöpfe der Seite: Schwierigkeitsstufen (mit
   Prüfung, dass die Stufen in der Seitenleiste landen und nicht in der
   Kennzahl), Neues Rätsel, Zurück/Vor, Hinweis, Prüfen, Lösung, Drucken,
   Link, Farbschema, Seed-Eingabe und die Tastenkürzel.
-* **Heft-Oberfläche** – alle Knöpfe der Heftseite: Stufen, Rätsel pro Seite,
-  Anzahl, Heft erzeugen (mit A4-Bögen, Falt- und Schnittmarken), Drucken,
-  Link, Lösungen ein-/ausblenden – und dass beim Start nichts erzeugt wird.
+* **Heft-Oberfläche** – alle Knöpfe der Heftseite: Stufen, Anzahl, Heft
+  erzeugen (mit A4-Bögen und Faltmarke), Drucken, Link, Lösungen
+  ein-/ausblenden – und dass beim Start nichts erzeugt wird.
 * **Eindeutige IDs** – kein Element teilt sich eine `id` mit einem anderen,
   und jeder Knopf hat einen Klick-Handler.
 * **Zufallsgenerator** – Determinismus, Wertebereiche, Verteilungen.
 
-Aktueller Stand: **190 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 ms.
+Aktueller Stand: **184 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 ms.
 
 ### Schwierigkeitsgrade
 
@@ -255,7 +249,7 @@ Aktueller Stand: **190 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 m
 | Mittel | 22 – 58 | 16 × 16 | ~20 % | 25 ms |
 | Schwer | 34 – 64 | 19 × 19 | ~30 % | 40 ms |
 | Experte | 44 – 74 | 23 × 23 | ~40 % | 70 ms |
-| Rätselheft (DIN A6) | ~30 / 46 / 65 / **100** | bis 22 × 22 | ~12 % | ~1 s |
+| Rätselheft (DIN A5) | ~30 / 46 / 65 / **100** | bis 22 × 22 | ~12 % | ~1 s |
 
 ---
 
@@ -399,7 +393,7 @@ der Messung erledigt: **nein**. Sie widerspricht der Stufe. Das Heft handelt
 sie beim Erzeugen selbst aus – und zwar so, dass möglichst viele Inseln
 herauskommen, ohne den Schwierigkeitsgrad zu verfehlen:
 
-1. Startwert ist die stufentypische Dichte auf einer A6-Seite.
+1. Startwert ist die stufentypische Dichte auf einer A5-Seite.
 2. Reicht das Band nicht (zu hart), wird die Zahl gesenkt.
 3. Passt es, wird sie in 10-%-Schritten erhöht, solange das Band hält.
 
@@ -413,7 +407,7 @@ und die übrigen Rätsel des Hefts wären zu schwer.
 | Leicht | ~30–36 | 0 – 0,25 | 0,07 – 0,33 |
 | Mittel | ~46 | 0,25 – 0,45 | 0,31 – 0,37 |
 | Schwer | ~63–69 | 0,45 – 0,62 | 0,51 – 0,61 |
-| Experte | 100 (A6-Grenze) | 0,62 – 1 | 0,72 – 0,86 |
+| Experte | 100 (Heft-Grenze) | 0,62 - 1 | 0,72 - 0,86 |
 
 Die Zahl hängt vom Seed ab: sie wird für jedes Heft neu ausgehandelt. Unter
 jedem Rätsel steht die *gemessene* Stufe, in der Fusszeile des Hefts, wie
@@ -453,7 +447,7 @@ Der Spielstand je Stufe:
 #### Die Antwort auf die Kernfrage
 
 *Ja* – ein Rätsel mit 100 Inseln **kann** leicht sein, es braucht nur ein
-entsprechend weiteres Raster. Auf einer DIN-A6-Seite ist das allerdings
+entsprechend weiteres Raster. Auf einer DIN-A5-Seite ist das allerdings
 nicht darstellbar: bei höchstens 22 Spalten (Lesbarkeit) und 100 Inseln
 bleibt das Raster 22 × 22, und damit ist ein solches Rätsel zwangsläufig
 „sehr schwer" (gemessen 0,68 – 0,80).
@@ -576,18 +570,18 @@ darüber die Quote eindeutiger Rätsel einbricht.
 ```
 hashi/
 ├── index.html                 # App-Oberfläche (Spiel)
-├── puzzlebook.html            # Rätselheft-Generator (DIN A6)
+├── puzzlebook.html            # Rätselheft-Generator (DIN A5)
 ├── favicon.svg
 ├── css/
 │   ├── styles.css             # Design, Hell/Dunkel, Responsive, Druck
-│   └── booklet.css            # Layout der A6-Seiten und A4-Bögen
+│   └── booklet.css            # Layout der A5-Seiten und A4-Bögen
 ├── js/
 │   ├── app.js                 # Spiellogik, Verlauf, Timer, Speichern, Drucken
 │   ├── board.js               # Brettmodell: Kanten, Kreuzungen, Nachbarschaft
 │   ├── difficulty.js          # Schwierigkeitsmessung (Metriken + Normierung)
 │   ├── game.js                # Spielzustand: Brücken, Undo/Redo, Hinweise
 │   ├── generator.js           # Rätselgenerator
-│   ├── impose.js              # Bogen-Imposition (A6-Seiten auf A4-Bögen)
+│   ├── impose.js              # Bogen-Imposition (A5-Seiten auf A4-Bögen)
 │   ├── layout.js              # Seitenaufteilung des Rätselhefts
 │   ├── render.js              # Canvas-Renderer + Trefferprüfung
 │   ├── svg.js                 # SVG-Renderer (Druck & Heft)

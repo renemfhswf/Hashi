@@ -1,14 +1,14 @@
 /**
- * Rätselheft-Generator: erzeugt mehrere Hashi-Rätsel, setzt sie auf
- * DIN-A6-Seiten (1 oder 2 Rätsel) und ordnet diese als Heft auf
- * DIN-A4-Bögen an (Vorder- und Rückseite, zum Schneiden und Falten).
+ * Rätselheft-Generator: erzeugt mehrere Hashi-Rätsel, setzt sie je auf eine
+ * DIN-A5-Seite und ordnet diese als Heft auf DIN-A4-Bögen an (Vorder- und
+ * Rückseite, einmal falten).
  */
 
 import { generatePuzzle, DIFFICULTIES, DIFFICULTY_IDS, BOOKLET_FORMAT } from './generator.js';
 import { buildBoard } from './board.js';
 import { randomSeed } from './rng.js';
 import { boardToSvgElement, boardToSvgElementWithSolution, SVG_VIEW_PAD } from './svg.js';
-import { bestLayout, cellSizeMm, groupIntoPages } from './layout.js';
+import { cellSizeMm, pagesOf } from './layout.js';
 import { impose } from './impose.js';
 import { LEVEL_BANDS, achievableRange, bucketFor, maxIslandsFor, CELLS_PER_ISLAND } from './difficulty.js';
 import { CALIBRATION } from './data/difficulty.js';
@@ -17,7 +17,6 @@ const $ = (id) => document.getElementById(id);
 
 const ui = {
   difficulty: $('difficulty'),
-  perPage: $('perPage'),
   count: $('count'),
   countInput: $('countInput'),
   seedInput: $('seedInput'),
@@ -33,12 +32,13 @@ const ui = {
 const MAX_PUZZLES = 100;
 
 /**
- * Maximale Rasterweite auf einer A6-Seite.
+ * Maximale Rasterweite auf einer A5-Seite.
  *
- * Auf einer A6-Seite stehen 93 mm Breite zur Verfügung. Die Zahl im Knoten
- * soll mindestens rund 6 pt gross sein – bei einem Knotendurchmesser von
- * 0,8 Rasterzellen braucht die Zelle dafür mindestens 4,2 mm. Das ergibt
- * höchstens 22 Spalten.
+ * Auf einer A5-Seite stehen 136 mm Breite zur Verfügung. Damit wird die
+ * Rasterzelle selbst beim breitesten Heft-Raster (23 Spalten) rund 5,9 mm
+ * breit – die Zahlen bleiben deutlich besser lesbar als im früheren
+ * A6-Heft (dort rund 4,2 mm). Die Proberätsel beim Aushandeln der Inselzahl
+ * bleiben auf 22 Spalten begrenzt.
  */
 const MAX_COLS = 22;
 
@@ -55,7 +55,6 @@ const LABEL_TO_ID = Object.fromEntries(
 
 const state = {
   level: 'medium', // gewünschte Schwierigkeitsstufe (Zielband)
-  perPage: 2,
   count: 8,
   seed: randomSeed(),
   withSolutions: true,
@@ -81,7 +80,7 @@ function islandCount() {
 
 /**
  * Startwert für die Inselzahl: die stufentypische Dichte auf einer
- * A6-Seite. Dieser Wert trifft das Band erfahrungsgemäss zuverlässig.
+ * A5-Seite. Dieser Wert trifft das Band erfahrungsgemäss zuverlässig.
  */
 function densityIslands() {
   const cap = Math.floor(
@@ -93,7 +92,7 @@ function densityIslands() {
 /**
  * Handelt die Inselzahl für das ganze Heft aus.
  *
- * Gesucht ist die grösste Inselzahl, deren Rätsel auf einer A6-Seite
+ * Gesucht ist die grösste Inselzahl, deren Rätsel auf einer A5-Seite
  * (höchstens `MAX_COLS` Spalten) das Band der Stufe noch zuverlässig
  * treffen. Ausgegangen wird von der Dichte-Schätzung; danach wird die
  * Zahl erhöht, solange der Median mehrerer Proberätsel im Band bleibt.
@@ -214,17 +213,16 @@ function makePuzzle(index) {
  * Erzeugt ein einzelnes Rätsel-Element (Mini-Version).
  *
  * Das Brett wird in echten Millimetern gezeichnet: dadurch bleiben
- * Inseln, Zahlen und Brücken auf der Seite immer gleich gross – auch
- * wenn zwei Rätsel unterschiedlich grosse Raster haben.
+ * Inseln, Zahlen und Brücken auf der Seite immer gleich gross.
  */
-function miniPuzzle(puzzle, index, { solution = false, layout = 'row', count = 1 } = {}) {
+function miniPuzzle(puzzle, index, { solution = false } = {}) {
   const article = document.createElement('article');
   article.className = 'mini';
 
   // Massgeblich ist das eingefrorene Heft-Raster, nicht das (nach dem
   // Beschneiden evtl. kleinere) Raster des einzelnen Rätsels. Dadurch
   // haben alle Knoten im Heft exakt dieselbe Grösse.
-  const cellMm = cellSizeMm(state.format ?? puzzle, layout, count);
+  const cellMm = cellSizeMm(state.format ?? puzzle);
   const widthMm = (puzzle.cols + 2 * SVG_VIEW_PAD) * cellMm;
   const heightMm = (puzzle.rows + 2 * SVG_VIEW_PAD) * cellMm;
 
@@ -285,7 +283,7 @@ function miniPuzzle(puzzle, index, { solution = false, layout = 'row', count = 1
 }
 
 /**
- * Erzeugt eine A6-Seite mit den übergebenen Rätseln.
+ * Erzeugt eine A5-Seite mit dem übergebenen Rätsel.
  *
  * `page` ist ein Eintrag der Seitenliste (`{ no, puzzles, solution,
  * firstIndex }`) oder `null` für eine leere Seite.
@@ -309,19 +307,12 @@ function buildPage(page) {
   nr.textContent = `S. ${page.no}`;
   seite.appendChild(nr);
 
-  const layout = bestLayout(page.puzzles);
   const grid = document.createElement('div');
   grid.className = 'seite__grid';
-  grid.dataset.per = String(page.puzzles.length);
-  grid.dataset.layout = layout;
 
   page.puzzles.forEach((puzzle, i) => {
     grid.appendChild(
-      miniPuzzle(puzzle, page.firstIndex + i, {
-        solution: page.solution,
-        layout,
-        count: page.puzzles.length,
-      }),
+      miniPuzzle(puzzle, page.firstIndex + i, { solution: page.solution }),
     );
   });
 
@@ -332,52 +323,40 @@ function buildPage(page) {
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /**
- * Schnitt- und Faltkanten eines Bogens.
+ * Faltkante eines Bogens.
  *
- * Durchgezogen = schneiden, gestrichelt = falten. Gezeichnet wird in
- * Bogenkoordinaten (1 Einheit = 1 mm), damit die Linien unabhängig von
- * der Papiergrösse exakt auf den Kanten liegen. Die Beschriftungen
- * liegen im Randbereich der Seiten, damit sie kein Rätsel überdecken.
+ * Gestrichelt = falten. Gezeichnet wird in Bogenkoordinaten
+ * (1 Einheit = 1 mm), damit die Linie unabhängig von der Papiergrösse exakt
+ * in der Mitte liegt. Die Beschriftung liegt im Randbereich der Seiten,
+ * damit sie kein Rätsel überdeckt.
  */
-function foldAndCutMarks() {
+function foldMark() {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('class', 'marken');
-  svg.setAttribute('viewBox', '0 0 210 297');
+  svg.setAttribute('viewBox', '0 0 297 210');
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.setAttribute('aria-hidden', 'true');
 
-  // Schnitt in der Bogenmitte: trennt Aussen- und Innenlage.
-  const cut = document.createElementNS(SVG_NS, 'line');
-  cut.setAttribute('class', 'marke marke--schnitt');
-  cut.setAttribute('x1', '0');
-  cut.setAttribute('y1', '148.5');
-  cut.setAttribute('x2', '210');
-  cut.setAttribute('y2', '148.5');
-
-  // Falte: teilt jede Hälfte in zwei A6-Seiten.
+  // Falte in der Bogenmitte: teilt den Bogen in zwei A5-Seiten.
   const fold = document.createElementNS(SVG_NS, 'line');
   fold.setAttribute('class', 'marke marke--falt');
-  fold.setAttribute('x1', '105');
+  fold.setAttribute('x1', '148.5');
   fold.setAttribute('y1', '0');
-  fold.setAttribute('x2', '105');
-  fold.setAttribute('y2', '297');
+  fold.setAttribute('x2', '148.5');
+  fold.setAttribute('y2', '210');
 
-  svg.append(cut, fold);
-
-  const cutText = document.createElement('span');
-  cutText.className = 'marke__text marke__text--schnitt';
-  cutText.textContent = 'schneiden';
+  svg.append(fold);
 
   const foldText = document.createElement('span');
   foldText.className = 'marke__text marke__text--falt';
   foldText.textContent = 'falten';
 
-  return [svg, cutText, foldText];
+  return [svg, foldText];
 }
 
 /**
- * Baut eine Bogenhälfte (Vorder- oder Rückseite) als A4-Blatt mit vier
- * A6-Seiten in Heft-Reihenfolge.
+ * Baut eine Bogenhälfte (Vorder- oder Rückseite) als A4-Querformat mit zwei
+ * A5-Seiten in Heft-Reihenfolge.
  */
 function buildSheetElement(sheet, side) {
   const section = document.createElement('section');
@@ -393,9 +372,9 @@ function buildSheetElement(sheet, side) {
   const paper = document.createElement('div');
   paper.className = 'bogen__paper';
   paper.dataset.side = side;
-  // Reihenfolge: oben-links, oben-rechts, unten-links, unten-rechts.
+  // Reihenfolge: links, rechts.
   for (const page of sheet[side]) paper.append(buildPage(page));
-  paper.append(...foldAndCutMarks());
+  paper.append(...foldMark());
 
   section.append(label, paper);
   return section;
@@ -424,7 +403,7 @@ function bookletPages(pages) {
 
 function render() {
   const puzzles = state.puzzles;
-  const pages = groupIntoPages(puzzles, state.perPage);
+  const pages = pagesOf(puzzles);
   const list = bookletPages(pages);
   const { sheets, pageCount } = impose(list);
 
@@ -438,8 +417,6 @@ function render() {
 
   ui.sheets.replaceChildren(...druckbogen);
 
-  const singles = pages.filter((p) => p.length === 1).length;
-  const doubles = pages.length - singles;
   const blank = pageCount - list.length;
 
   ui.info.dataset.dirty = '';
@@ -468,12 +445,10 @@ function render() {
     `${puzzles[0]?.islands.length ?? count} Inseln`,
     `Ziel „${target}"`,
     `gemessen Ø ${avgDifficulty.toFixed(2)} (${imBand}/${puzzles.length} im Zielband)`,
-    `${pages.length} Rätselseiten` +
-      (singles ? ` (${doubles} mit 2, ${singles} mit 1 Rätsel)` : ' mit je 2 Rätseln') +
-      (state.withSolutions ? ` + ${pages.length} Lösungsseiten` : ''),
+    `${pages.length} Rätselseiten` + (state.withSolutions ? ` + ${pages.length} Lösungsseiten` : ''),
   ];
   if (blank) teile.push(`${blank} leere Seiten`);
-  teile.push(`${pageCount} Seiten A6`, `${sheets.length} A4-Bogen beidseitig`);
+  teile.push(`${pageCount} Seiten A5`, `${sheets.length} A4-Bogen beidseitig`);
   teile.push(`Seed ${state.seed}`);
 
   ui.info.textContent = teile.join(' · ') + hinweis;
@@ -490,8 +465,8 @@ function render() {
 function fitPreview() {
   const width = ui.sheets.clientWidth;
   if (!width) return;
-  // 210 mm bei 96 dpi
-  const paper = (210 * 96) / 25.4;
+  // 297 mm (A4 quer) bei 96 dpi
+  const paper = (297 * 96) / 25.4;
   const zoom = Math.min(1, (width - 4) / paper);
   ui.sheets.style.setProperty('--bogen-zoom', zoom.toFixed(3));
 }
@@ -504,9 +479,6 @@ function syncGroups() {
   for (const button of ui.difficulty.querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(button.dataset.level === state.level));
   }
-  for (const button of ui.perPage.querySelectorAll('button')) {
-    button.setAttribute('aria-pressed', String(Number(button.dataset.per) === state.perPage));
-  }
   for (const button of ui.count.querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(Number(button.dataset.count) === state.count));
   }
@@ -517,7 +489,6 @@ function updateHash() {
     seed: state.seed,
     d: state.level,
     n: String(state.count),
-    per: String(state.perPage),
   });
   if (state.withSolutions) params.set('sol', '1');
   const hash = `#${params.toString()}`;
@@ -529,7 +500,6 @@ function readHash() {
   const out = {};
   const seed = params.get('seed');
   const n = Number(params.get('n'));
-  const per = Number(params.get('per'));
   if (seed) out.seed = seed;
 
   const d = (params.get('d') || '').trim().toLowerCase();
@@ -537,7 +507,6 @@ function readHash() {
   else if (LABEL_TO_ID[d]) out.level = LABEL_TO_ID[d];
 
   if (Number.isFinite(n) && n >= 1 && n <= MAX_PUZZLES) out.count = Math.round(n);
-  if ([1, 2].includes(per)) out.perPage = per;
   if (params.get('sol') === '1') out.withSolutions = true;
   return out;
 }
@@ -633,16 +602,6 @@ function markDirty() {
 }
 
 function setupEvents() {
-  for (const button of ui.perPage.querySelectorAll('button')) {
-    button.addEventListener('click', () => {
-      state.perPage = Number(button.dataset.per);
-      syncGroups();
-      // Nur die vorhandenen Rätsel neu anordnen, nicht neu erzeugen.
-      if (state.puzzles.length) render();
-      updateHash();
-    });
-  }
-
   for (const button of ui.count.querySelectorAll('button')) {
     button.addEventListener('click', () => {
       state.count = Number(button.dataset.count);

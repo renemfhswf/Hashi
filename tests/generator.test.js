@@ -341,7 +341,7 @@ describe('generatePuzzle – Anordnung der Knoten', () => {
   });
 });
 
-describe('generatePuzzle – Heft-Format (DIN A6)', () => {
+describe('generatePuzzle – Heft-Format (DIN A5)', () => {
   test('erzeugt Rätsel mit etwa 100 Inseln', () => {
     for (let i = 0; i < 3; i++) {
       const puzzle = generatePuzzle({
@@ -391,7 +391,7 @@ describe('generatePuzzle – Heft-Format (DIN A6)', () => {
     assert.equal(puzzle.islands.length, 46);
   });
 
-  test('das Heft-Format passt auf eine A6-Seite', () => {
+  test('das Heft-Format passt auf eine A5-Seite', () => {
     const puzzle = generatePuzzle({
       difficulty: 'medium',
       seed: 'HEFT-GROESSE',
@@ -399,10 +399,11 @@ describe('generatePuzzle – Heft-Format (DIN A6)', () => {
       format: BOOKLET_FORMAT,
       keep: 1,
     });
-    // Auf einer A6-Seite bleiben 93 x 136 mm nutzbar. Die Rasterzelle
-    // muss gross genug bleiben, damit die Inseln (3 mm) noch passen.
-    const cellMm = Math.min(93 / (puzzle.cols + 0.24), 136 / (puzzle.rows + 0.24));
-    assert.ok(cellMm >= 4, `Rasterzelle nur ${cellMm.toFixed(1)} mm`);
+    // Auf einer A5-Seite bleiben 136 x 190 mm nutzbar. Die Rasterzelle
+    // muss gross genug bleiben, damit die Inseln (3 mm) noch passen – und
+    // sie ist deutlich grösser als im früheren A6-Heft (dort rund 4 mm).
+    const cellMm = Math.min(136 / (puzzle.cols + 0.24), 190 / (puzzle.rows + 0.24));
+    assert.ok(cellMm >= 5, `Rasterzelle nur ${cellMm.toFixed(1)} mm`);
   });
 });
 

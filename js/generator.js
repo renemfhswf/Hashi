@@ -111,7 +111,7 @@ export const DIFFICULTIES = {
 
 /**
  * Sehr grosses Format für das Rätselheft: etwa 100 Inseln auf einer
- * DIN-A6-Seite. Wird über `islands` in `generatePuzzle` angesteuert.
+ * DIN-A5-Seite. Wird über `islands` in `generatePuzzle` angesteuert.
  *
  * Gemessen (100 Inseln, 23x21): mit variablen Brückenlängen bis 4 Felder
  * und 12 % Doppelbrücken liefert die Erzeugung zuverlässig eindeutige

@@ -15,8 +15,8 @@ import { mountPage, makeEvent } from './helpers/dom.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Baut die Heftseite auf; Standard: ein leichtes Rätsel, eine Seite pro Blatt. */
-const mount = (hash = '#seed=TEST&d=easy&n=1&per=1') =>
+/** Baut die Heftseite auf; Standard: ein leichtes Rätsel. */
+const mount = (hash = '#seed=TEST&d=easy&n=1') =>
   mountPage(path.join(ROOT, 'puzzlebook.html'), path.join(ROOT, 'js', 'booklet.js'), { hash });
 
 const info = (doc) => doc.getElementById('bookletInfo');
@@ -46,14 +46,17 @@ test('Beim Start ist die Vorschau leer – es wird nichts erzeugt', async () => 
     document.getElementById('difficulty').querySelector('button[aria-pressed="true"]')?.dataset.level,
     'easy',
   );
+
+  // Die frühere Auswahl «Rätsel pro Seite» gibt es nicht mehr.
+  assert.equal(document.getElementById('perPage'), null, 'die Auswahl «Rätsel pro Seite» ist noch da');
 });
 
 test('Jeder Knopf der Heftseite hat einen Klick-Handler', async () => {
   const { document } = await mount();
 
   const buttons = document.body.querySelectorAll('button');
-  // 4 Stufen + 2 pro Seite + 4 Anzahl + Heft + Druck + Link
-  assert.equal(buttons.length, 13, `unerwartete Knopfzahl: ${buttons.length}`);
+  // 4 Stufen + 4 Anzahl + Heft + Druck + Link
+  assert.equal(buttons.length, 11, `unerwartete Knopfzahl: ${buttons.length}`);
 
   for (const button of buttons) {
     const name = button.id || button.textContent.trim() || button.dataset.level || '?';
@@ -87,20 +90,15 @@ test('Die Stufen-Knöpfe stehen in der Knopfleiste und wählen nur aus', async (
   assert.equal(document.getElementById('generateBtn').disabled, false);
 });
 
-test('«Rätsel pro Seite» und «Anzahl Rätsel» stellen die Werte ein', async () => {
+test('«Anzahl Rätsel» stellt den Wert ein', async () => {
   const { document, window } = await mount();
-
-  const perPage = document.getElementById('perPage').querySelectorAll('button');
-  perPage.find((button) => button.dataset.per === '2').click();
-  assert.equal(perPage.find((button) => button.dataset.per === '2').getAttribute('aria-pressed'), 'true');
-  assert.match(window.location.hash, /(^#|&)per=2(&|$)/);
-  assert.equal(document.getElementById('sheets').querySelectorAll('.bogen').length, 0);
 
   const count = document.getElementById('count').querySelectorAll('button');
   count.find((button) => button.dataset.count === '20').click();
   assert.equal(document.getElementById('countInput').value, '20');
   assert.equal(count.find((button) => button.dataset.count === '20').getAttribute('aria-pressed'), 'true');
   assert.match(window.location.hash, /(^#|&)n=20(&|$)/);
+  assert.equal(document.getElementById('sheets').querySelectorAll('.bogen').length, 0);
 });
 
 test('Die Anzahl kann auch von Hand eingetippt werden (mit Grenzen)', async () => {
@@ -132,7 +130,7 @@ test('Ein neuer Seed merkt die Vorschau als veraltet vor', async () => {
   assert.equal(document.getElementById('generateBtn').disabled, false);
 });
 
-test('«Heft erzeugen» baut A4-Bögen mit Falt- und Schnittmarken', async () => {
+test('«Heft erzeugen» baut A4-Bögen mit Faltmarke', async () => {
   const { document, window } = await mount();
 
   const generateBtn = document.getElementById('generateBtn');
@@ -146,22 +144,27 @@ test('«Heft erzeugen» baut A4-Bögen mit Falt- und Schnittmarken', async () =>
   assert.equal(boegen[0].dataset.side, 'front');
   assert.equal(boegen[1].dataset.side, 'back');
 
-  // Vier A6-Seiten pro Bogenhälfte.
-  assert.equal(boegen[0].querySelectorAll('.seite').length, 4);
-  assert.equal(sheets.querySelectorAll('.seite').length, 8);
+  // Zwei A5-Seiten pro Blattseite, also vier pro Bogen.
+  assert.equal(boegen[0].querySelectorAll('.seite').length, 2);
+  assert.equal(sheets.querySelectorAll('.seite').length, 4);
 
-  // Schnitt- und Faltlinien liegen als SVG im Bogen.
+  // Die Faltlinie liegt als SVG im Bogen – geschnitten wird nicht mehr.
   assert.equal(sheets.querySelectorAll('.marken').length, 2);
-  assert.equal(sheets.querySelectorAll('.marke--schnitt').length, 2);
   assert.equal(sheets.querySelectorAll('.marke--falt').length, 2);
+  assert.equal(sheets.querySelectorAll('.marke--schnitt').length, 0, 'es gibt noch Schnittmarken');
+
+  // Die Vorschau zeigt zwei Rätsel bzw. ein Rätsel mit Lösung.
+  assert.equal(sheets.querySelectorAll('.mini').length, 2);
 
   // Jede Seite trägt ein Rätsel oder den Leer-Hinweis.
   const summary = info(document);
   assert.match(summary.textContent, /^1 Rätsel · \d+ Inseln · Ziel „Leicht"/);
-  assert.match(summary.textContent, /A4-Bogen beidseitig/);
+  assert.match(summary.textContent, /4 Seiten A5/);
+  assert.match(summary.textContent, /1 A4-Bogen beidseitig/);
   assert.match(summary.textContent, /Seed TEST/);
 
   assert.match(window.location.hash, /(^#|&)d=easy(&|$)/);
+  assert.equal(window.location.hash.includes('per='), false, 'die Adresse enthält noch «per»');
   assert.equal(generateBtn.textContent.includes('Heft erzeugen'), true);
 });
 
@@ -180,25 +183,20 @@ test('«Drucken» und «Link» arbeiten nach der Erzeugung', async () => {
   assert.equal(info(document).textContent, 'Link in die Zwischenablage kopiert.');
 });
 
-test('«Rätsel pro Seite» ordnet die vorhandenen Rätsel neu an, ohne neu zu erzeugen', async () => {
-  const { document } = await mount();
+test('Die Bögen stehen in Heft-Reihenfolge', async () => {
+  const { document } = await mount('#seed=REIHENFOLGE&d=easy&n=2');
 
   const generateBtn = document.getElementById('generateBtn');
   generateBtn.click();
   await waitFor(() => !generateBtn.disabled);
 
-  const miniCount = () => document.getElementById('sheets').querySelectorAll('.mini').length;
-  // Ein Rätsel + eine Lösungsseite.
-  const before = miniCount();
-  assert.equal(before, 2);
+  // Zwei Rätsel + zwei Lösungsseiten = vier Seiten = ein Bogen.
+  const boegen = document.getElementById('sheets').querySelectorAll('.bogen');
+  assert.equal(boegen.length, 2, 'Vorder- und Rückseite');
 
-  const perPage = document.getElementById('perPage').querySelectorAll('button');
-  perPage.find((button) => button.dataset.per === '2').click();
-
-  assert.equal(miniCount(), before, 'die Rätsel wurden neu erzeugt statt nur neu angeordnet');
-  assert.equal(document.getElementById('sheets').querySelectorAll('.bogen').length, 2);
-  assert.equal(generateBtn.disabled, false);
-  assert.equal(info(document).textContent.includes('Lösungsseiten'), true);
+  const seiten = (bogen) => bogen.querySelectorAll('.seite__nr').map((nr) => nr.textContent);
+  assert.deepEqual(seiten(boegen[0]), ['S. 4', 'S. 1'], 'Vorderseite: hinten links, Titel rechts');
+  assert.deepEqual(seiten(boegen[1]), ['S. 2', 'S. 3'], 'Rückseite: die beiden Innenseiten');
 });
 
 test('Lösungen lassen sich abwählen und wieder anhängen', async () => {

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Rätselheft – Layout der Druckbögen (DIN A6) und der Vorschau
+   Rätselheft – Layout der Druckbögen (DIN A5) und der Vorschau
    ========================================================================== */
 
 .booklet-body {
@@ -27,10 +27,6 @@
 
 .booklet__preview {
   min-width: 0;
-}
-
-.segmented--3 {
-  grid-template-columns: repeat(3, 1fr);
 }
 
 .segmented--4 {
@@ -65,7 +61,7 @@
   padding-bottom: 4px;
 }
 
-/* Ein DIN-A4-Bogen mit vier DIN-A6-Seiten (2 × 2). */
+/* Ein DIN-A4-Bogen (quer) mit zwei DIN-A5-Seiten. */
 .bogen {
   display: flex;
   flex-direction: column;
@@ -83,24 +79,24 @@
 }
 
 .bogen__paper {
-  --seite-w: 105mm;
-  --seite-h: 148.5mm;
+  --seite-w: 148.5mm;
+  --seite-h: 210mm;
   position: relative;
   flex: none;
   width: calc(var(--seite-w) * 2);
-  height: calc(var(--seite-h) * 2);
+  height: var(--seite-h);
   /* Nur für die Vorschau: gedruckt wird immer 1:1. */
   zoom: var(--bogen-zoom, 1);
   display: grid;
   grid-template-columns: var(--seite-w) var(--seite-w);
-  grid-template-rows: var(--seite-h) var(--seite-h);
+  grid-template-rows: var(--seite-h);
   background: #fff;
   color: #000;
   overflow: hidden;
   box-shadow: var(--shadow);
 }
 
-/* Eine Heftseite (DIN A6). */
+/* Eine Heftseite (DIN A5). */
 .seite {
   position: relative;
   padding: 6mm;
@@ -136,28 +132,14 @@
   gap: 4mm;
   width: 100%;
   height: 100%;
-}
-
-.seite__grid[data-per="1"] {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
 }
 
-/* Zwei Rätsel: je nach Rasterform untereinander oder nebeneinander. */
-.seite__grid[data-per="2"][data-layout="row"] {
-  grid-template-columns: 1fr;
-  grid-template-rows: repeat(2, 1fr);
-}
+/* ------------------------------------------------------------ Faltkante */
 
-.seite__grid[data-per="2"][data-layout="col"] {
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: 1fr;
-}
-
-/* -------------------------------------------------- Schnitt- und Faltkanten */
-
-/* Schnitt durchgezogen, Falte gestrichelt. Gezeichnet als SVG, damit die
-   Linien auch dann drucken, wenn der Browser keine Hintergründe druckt. */
+/* Falte gestrichelt. Gezeichnet als SVG, damit die Linie auch dann druckt,
+   wenn der Browser keine Hintergründe druckt. */
 .marken {
   position: absolute;
   inset: 0;
@@ -166,18 +148,13 @@
   pointer-events: none;
 }
 
-.marke--schnitt {
-  stroke: #111;
-  stroke-width: 0.35;
-}
-
 .marke--falt {
   stroke: #111;
   stroke-width: 0.35;
   stroke-dasharray: 3 3;
 }
 
-/* Beschriftung der Kanten: liegt im Randbereich der Seiten. */
+/* Beschriftung der Faltkante: liegt im Randbereich der Seiten. */
 .marke__text {
   position: absolute;
   font-size: 5.5pt;
@@ -189,17 +166,11 @@
   pointer-events: none;
 }
 
-/* Über der Schnittlinie, mittig in der oberen linken Seite … */
-.marke__text--schnitt {
-  top: calc(var(--seite-h) - 3.9mm);
-  left: calc(var(--seite-w) / 2);
-  transform: translateX(-50%);
-}
-
-/* … und rechts der Faltlinie, in der unteren rechten Seite. */
+/* Links neben der Faltlinie, in der oberen linken Seite. */
 .marke__text--falt {
-  top: calc(var(--seite-h) + 2mm);
-  left: calc(var(--seite-w) + 1.5mm);
+  top: 2mm;
+  left: calc(var(--seite-w) - 1.5mm);
+  transform: translateX(-100%);
 }
 
 /* --------------------------------------------------------- Einzelnes Rätsel */
@@ -265,8 +236,8 @@
 
 /* Leerzustand, solange noch kein Heft erzeugt wurde. */
 .empty {
-  width: 105mm;
-  min-height: 148mm;
+  width: 148mm;
+  min-height: 210mm;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -300,7 +271,7 @@
    das Spiel-Format. */
 @media print {
   @page {
-    size: A4 portrait;
+    size: A4 landscape;
     margin: 0;
   }
 
@@ -346,9 +317,10 @@
 
   .bogen__paper {
     /* Etwas kleiner als A4, damit der Browser keine leere Folgeseite
-       anlegt. Die Kanten liegen damit bei 148,2 mm statt 148,5 mm –
-       auf das Falten hat das keinen Einfluss. */
-    --seite-h: 148.2mm;
+       anlegt. Die Kanten liegen damit bei 148,4 × 209,8 mm – auf das
+       Falten hat das keinen Einfluss. */
+    --seite-w: 148.4mm;
+    --seite-h: 209.8mm;
     zoom: 1;
     box-shadow: none;
     break-after: page;
