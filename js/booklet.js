@@ -619,6 +619,9 @@ function buildDifficultyButtons() {
 
 /** Merkt vor, dass die aktuelle Vorschau zu den Einstellungen veraltet ist. */
 function markDirty() {
+  // Die Adresse zeigt immer die aktuellen Einstellungen – so lässt sich das
+  // Heft per Link weitergeben, auch bevor es erzeugt wurde.
+  updateHash();
   // Bei geänderten Einstellungen muss das Raster neu bestimmt werden.
   state.format = null;
   // Die Inselzahl wird beim Erzeugen neu ausgehandelt.

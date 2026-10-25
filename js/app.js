@@ -31,7 +31,11 @@ const ui = {
   timer: $('timer'),
   bridgeCount: $('bridgeCount'),
   status: $('status'),
+  // Zwei getrennte Elemente: die Knopfleiste der Stufen und die Kennzahl
+  // in der Kopfzeile. Gleiche IDs würden dazu führen, dass getElementById
+  // nur eines davon findet.
   difficulty: $('difficulty'),
+  difficultyStat: $('difficultyStat'),
   newBtn: $('newBtn'),
   undoBtn: $('undoBtn'),
   redoBtn: $('redoBtn'),
@@ -115,11 +119,11 @@ function newPuzzle({ difficulty = state.difficulty, seed = randomSeed() } = {}) 
   updateHash();
   save();
   render();
-  ui.difficulty.textContent = puzzle.difficultyScore.toLocaleString('de-DE', {
+  ui.difficultyStat.textContent = puzzle.difficultyScore.toLocaleString('de-DE', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  ui.difficulty.title = `Schwierigkeitsgrad ${puzzle.difficultyScore.toFixed(2)} (${puzzle.difficultyText})`;
+  ui.difficultyStat.title = `Schwierigkeitsgrad ${puzzle.difficultyScore.toFixed(2)} (${puzzle.difficultyText})`;
   setStatus(`${cfg.label} · ${state.board.islands.length} Inseln · Seed ${puzzle.seed}`);
 }
 

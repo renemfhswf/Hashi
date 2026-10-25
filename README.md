@@ -208,7 +208,12 @@ Dann `http://localhost:8000` öffnen.
 
 ## 🧪 Tests
 
-Die Testsuite prüft die erzeugten Rätsel formal auf Gültigkeit.
+Die Testsuite prüft die erzeugten Rätsel formal auf Gültigkeit – und seit
+Neuestem auch die Oberfläche: die echten Seiten laufen in einem kleinen,
+selbst geschriebenen DOM (`tests/helpers/dom.js`) in Node, die Knöpfe werden
+dort wirklich angeklickt und ihre Wirkung geprüft. So fällt z. B. auf, wenn
+zwei Elemente dieselbe `id` tragen und deshalb `getElementById` das falsche
+Element liefert.
 
 ```bash
 npm test          # einmalig
@@ -229,9 +234,18 @@ Getestet werden:
   Reduktion auf eines bei zu grossen Rastern.
 * **Bogen-Imposition** – acht Seiten pro A4-Bogen, verschachtelte
   Reihenfolge, leere Seiten werden aufgefüllt.
+* **Spiel-Oberfläche** – alle Knöpfe der Seite: Schwierigkeitsstufen (mit
+  Prüfung, dass die Stufen in der Seitenleiste landen und nicht in der
+  Kennzahl), Neues Rätsel, Zurück/Vor, Hinweis, Prüfen, Lösung, Drucken,
+  Link, Farbschema, Seed-Eingabe und die Tastenkürzel.
+* **Heft-Oberfläche** – alle Knöpfe der Heftseite: Stufen, Rätsel pro Seite,
+  Anzahl, Heft erzeugen (mit A4-Bögen, Falt- und Schnittmarken), Drucken,
+  Link, Lösungen ein-/ausblenden – und dass beim Start nichts erzeugt wird.
+* **Eindeutige IDs** – kein Element teilt sich eine `id` mit einem anderen,
+  und jeder Knopf hat einen Klick-Handler.
 * **Zufallsgenerator** – Determinismus, Wertebereiche, Verteilungen.
 
-Aktueller Stand: **164 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 ms.
+Aktueller Stand: **190 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 ms.
 
 ### Schwierigkeitsgrade
 
@@ -585,6 +599,8 @@ hashi/
 ├── scripts/
 │   └── calibrate.mjs          # erzeugt die Referenzbereiche
 ├── tests/                     # Testsuite (node:test, ohne Dependencies)
+│   └── helpers/
+│       └── dom.js             # Mini-DOM für die Oberflächentests
 ├── .github/workflows/pages.yml
 └── package.json
 ```
