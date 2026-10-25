@@ -101,8 +101,11 @@ Schneiden ist nicht nötig. Die Seitenreihenfolge setzt das Modul
 Innenseiten auf der Rückseite, Seite 4 aussen links. Leere Seiten werden
 ergänzt, bis das Heft auf volle Bögen kommt.
 
-Im Druckdialog **beidseitig** (Duplex, „kurze Kante"), **DIN A4 quer** und
-**100 % Skalierung** wählen. Die Faltkante ist auf jedem Bogen beschriftet.
+Im Druckdialog **beidseitig** (Duplex, „kurze Kante"), **DIN A4 quer**,
+**100 % Skalierung** und **Ränder: Standard** wählen. Der Standardrand ist
+wichtig, weil Papierdrucker nicht bis an den Blattrand drucken können; ohne
+ihn werden die äusseren Ränder der Rätsel abgeschnitten. Die Faltkante ist
+auf jedem Bogen beschriftet.
 
 > **Hinweis zur Reihenfolge der Stylesheets:** `booklet.css` wird nach
 > `styles.css` geladen. Nur so gewinnt die `@page`-Regel für DIN A4 quer

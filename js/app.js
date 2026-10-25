@@ -27,7 +27,6 @@ const ui = {
   winTime: $('winTime'),
   winHint: $('winHint'),
   winNew: $('winNew'),
-  winClose: $('winClose'),
   timer: $('timer'),
   bridgeCount: $('bridgeCount'),
   status: $('status'),
@@ -230,11 +229,15 @@ function hint() {
 function solve() {
   if (!state.board) return;
   state.game.solve();
+  // Die eingeblendete Lösung ist kein selbst gelöstes Rätsel: kein
+  // Siegesfenster, damit das Brett sichtbar bleibt.
+  state.game.solved = true;
   state.selected = null;
-  checkSolved();
+  state.running = false;
+  ui.overlay.hidden = true;
+  setStatus('Lösung eingeblendet.', 'ok');
   render();
   save();
-  if (!state.game.solved) setStatus('Lösung eingeblendet.', 'ok');
 }
 
 /* ------------------------------------------------------------------ *
@@ -245,13 +248,18 @@ function checkSolved() {
   if (!state.board || state.game.solved) return;
   if (!state.game.isSolved()) return;
   state.running = false;
+  // Eine eingeblendete Lösung ist kein selbst gelöstes Rätsel: Dann bleibt
+  // das Brett sichtbar, statt ein Siegesfenster über die Lösung zu legen.
+  if (state.game.revealed) {
+    setStatus('Lösung eingeblendet.', 'ok');
+    save();
+    return;
+  }
   ui.overlay.hidden = false;
   ui.winTime.textContent = fmtTime(state.elapsed);
-  ui.winHint.textContent = state.game.revealed
-    ? 'Lösung eingeblendet'
-    : state.game.hintsUsed
-      ? `${state.game.hintsUsed} Hinweis${state.game.hintsUsed > 1 ? 'e' : ''} verwendet`
-      : 'Ohne Hinweise gelöst';
+  ui.winHint.textContent = state.game.hintsUsed
+    ? `${state.game.hintsUsed} Hinweis${state.game.hintsUsed > 1 ? 'e' : ''} verwendet`
+    : 'Ohne Hinweise gelöst';
   setStatus(`Gelöst in ${fmtTime(state.elapsed)}.`, 'ok');
   save();
 }
@@ -328,6 +336,7 @@ function save() {
         difficulty: state.difficulty,
         elapsed: state.elapsed,
         solved: state.game.solved,
+        revealed: state.game.revealed,
         hintsUsed: state.game.hintsUsed,
         bridges: [...state.game.bridges.entries()],
       }),
@@ -618,9 +627,6 @@ function setupEvents() {
   ui.copyBtn.addEventListener('click', copyLink);
   ui.printBtn.addEventListener('click', printPuzzle);
   ui.winNew.addEventListener('click', () => newPuzzle({ difficulty: state.difficulty }));
-  ui.winClose.addEventListener('click', () => {
-    ui.overlay.hidden = true;
-  });
 
   ui.seedInput.addEventListener('change', () => {
     const value = ui.seedInput.value.trim();
@@ -667,6 +673,7 @@ function boot() {
     }
     state.elapsed = stored.elapsed ?? 0;
     state.game.hintsUsed = stored.hintsUsed ?? 0;
+    state.game.revealed = stored.revealed === true;
     ui.timer.textContent = fmtTime(state.elapsed);
     if (stored.solved) {
       checkSolved();

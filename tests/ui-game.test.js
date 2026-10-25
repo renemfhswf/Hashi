@@ -148,19 +148,19 @@ test('«Prüfen» meldet ein leeres Brett und danach korrekte Brücken', async (
   assert.equal(status(document), 'Alle gesetzten Brücken sind korrekt.');
 });
 
-test('«Lösung zeigen» öffnet das Fenster, «Weiterlösen» schliesst es', async () => {
+test('«Lösung zeigen» blendet die Lösung ein, ohne das Siegesfenster zu öffnen', async () => {
   const { document } = await mount();
 
   const overlay = document.getElementById('overlay');
   assert.equal(overlay.hidden, true);
 
   document.getElementById('solveBtn').click();
-  assert.equal(overlay.hidden, false, 'das Lösungsfenster wurde nicht geöffnet');
-  assert.match(document.getElementById('winTime').textContent, /^\d{2}:\d{2}$/);
-  assert.match(status(document), /^Gelöst in \d{2}:\d{2}\.$/);
+  assert.equal(overlay.hidden, true, 'für eine eingeblendete Lösung darf kein Siegesfenster erscheinen');
+  assert.equal(status(document), 'Lösung eingeblendet.');
+  assert.ok(Number(document.getElementById('bridgeCount').textContent) > 0, 'die Lösung wurde nicht eingeblendet');
 
-  document.getElementById('winClose').click();
-  assert.equal(overlay.hidden, true);
+  // «Weiterlösen» ist nach dem Lösen sinnlos und deshalb entfernt.
+  assert.equal(document.getElementById('winClose'), null);
   assert.match(document.getElementById('difficultyStat').textContent, /^\d+,\d{2}$/);
 });
 
@@ -168,7 +168,9 @@ test('«Neues Rätsel» im Lösungsfenster startet ein neues Rätsel', async () 
   const { document, window } = await mount();
 
   const overlay = document.getElementById('overlay');
-  document.getElementById('solveBtn').click();
+  const hintBtn = document.getElementById('hintBtn');
+  // Das Rätsel mit Hinweisen lösen, bis das Siegesfenster erscheint.
+  for (let i = 0; i < 500 && overlay.hidden; i++) hintBtn.click();
   assert.equal(overlay.hidden, false);
 
   const before = seedValue(document);
@@ -240,7 +242,8 @@ test('Tastenkürzel wirken wie die Knöpfe', async () => {
   assert.equal(status(document), 'Alle gesetzten Brücken sind korrekt.');
 
   press('s');
-  assert.equal(document.getElementById('overlay').hidden, false);
+  assert.equal(document.getElementById('overlay').hidden, true);
+  assert.equal(status(document), 'Lösung eingeblendet.');
 
   press('Escape');
   press('n');

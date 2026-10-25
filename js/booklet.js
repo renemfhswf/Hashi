@@ -673,7 +673,7 @@ function showEmptyState() {
   box.innerHTML =
     '<p class="empty__title">Noch kein Heft erzeugt</p>' +
     '<p class="empty__text">Einstellungen wählen und auf <strong>„Heft erzeugen"</strong> klicken. ' +
-    `Je nach Schwierigkeit entstehen ${islandCount()} Inseln pro Rätsel – das dauert einige Minuten.</p>`;
+    'Je nach Umfang dauert die Erzeugung einige Minuten.</p>';
   ui.sheets.replaceChildren(box);
   ui.info.textContent = 'Bereit – bitte „Heft erzeugen" klicken.';
   ui.info.dataset.dirty = '';

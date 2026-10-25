@@ -272,7 +272,10 @@
 @media print {
   @page {
     size: A4 landscape;
-    margin: 0;
+    /* Papierdrucker können nicht bis an den Blattrand drucken. Ohne diesen
+       Sicherheitsrand schneiden sie die äusseren Ränder der Rätsel ab –
+       beim Druck in eine PDF-Datei fällt das nicht auf. */
+    margin: 6mm;
   }
 
   html,
@@ -316,11 +319,13 @@
   }
 
   .bogen__paper {
-    /* Etwas kleiner als A4, damit der Browser keine leere Folgeseite
-       anlegt. Die Kanten liegen damit bei 148,4 × 209,8 mm – auf das
-       Falten hat das keinen Einfluss. */
-    --seite-w: 148.4mm;
-    --seite-h: 209.8mm;
+    /* Der Bogen muss in den bedruckbaren Bereich passen (A4 minus 2 × 6 mm
+       Sicherheitsrand). Etwas kleiner als der exakte Bereich, damit der
+       Browser keine leere Folgeseite anlegt. Die Faltkante bleibt exakt in
+       der Mitte und das Falten funktioniert unverändert. */
+    --seite-w: 142.4mm;
+    --seite-h: 197.8mm;
+    margin: 0 auto;
     zoom: 1;
     box-shadow: none;
     break-after: page;

@@ -49,6 +49,10 @@ test('Beim Start ist die Vorschau leer – es wird nichts erzeugt', async () => 
 
   // Die frühere Auswahl «Rätsel pro Seite» gibt es nicht mehr.
   assert.equal(document.getElementById('perPage'), null, 'die Auswahl «Rätsel pro Seite» ist noch da');
+
+  // Der Textblock «Inseln pro Rätsel» ist für die Bedienung nicht nötig.
+  assert.equal(document.getElementById('islandsInfo'), null, 'der Textblock «Inseln pro Rätsel» ist noch da');
+  assert.equal(document.body.textContent.includes('Inseln pro Rätsel'), false);
 });
 
 test('Jeder Knopf der Heftseite hat einen Klick-Handler', async () => {
