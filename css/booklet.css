@@ -198,7 +198,7 @@
   flex: none;
 }
 
-/* Schwierigkeitsgrad und Seed stehen unter dem Rätsel. */
+/* Schwierigkeitsgrad steht unter dem Rätsel. */
 .mini__foot {
   margin-top: 1.5mm;
   display: flex;
@@ -216,10 +216,52 @@
   text-transform: uppercase;
 }
 
-.mini__seed {
-  color: #888;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.03em;
+/* Heft-Code laden: sekundäre Aktion, deshalb eingeklappt. */
+.load-code {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.load-code summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.load-code summary::-webkit-details-marker {
+  display: none;
+}
+
+.load-code summary::before {
+  content: "▸";
+  font-size: 10px;
+}
+
+.load-code[open] summary::before {
+  content: "▾";
+}
+
+.load-code[open] summary {
+  margin-bottom: 10px;
+}
+
+.load-code .seed-row {
+  margin-bottom: 8px;
+}
+
+.field__note[data-tone="ok"] {
+  color: var(--correct);
+}
+
+.field__note[data-tone="bad"] {
+  color: var(--wrong);
 }
 
 /* Zeilenzähler für die Anzahl der Rätsel. */

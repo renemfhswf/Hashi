@@ -86,7 +86,7 @@ export class RNG {
   }
 }
 
-/** Erzeugt einen lesbaren, zufälligen Seed (z. B. "K4F-92QX"). */
+/** Erzeugt einen lesbaren, zufälligen Seed (z. B. "K4F9-2QXZ"). */
 export function randomSeed() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const bytes = new Uint8Array(8);

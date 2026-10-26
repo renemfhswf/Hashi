@@ -12,6 +12,7 @@ import { cellSizeMm, pagesOf } from './layout.js';
 import { impose } from './impose.js';
 import { LEVEL_BANDS, achievableRange, bucketFor, maxIslandsFor, CELLS_PER_ISLAND } from './difficulty.js';
 import { CALIBRATION } from './data/difficulty.js';
+import { makeBookletCode, parseBookletCode } from './booklet-code.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,8 +20,13 @@ const ui = {
   difficulty: $('difficulty'),
   count: $('count'),
   countInput: $('countInput'),
-  seedInput: $('seedInput'),
+  codeInput: $('codeInput'),
+  copyCodeBtn: $('copyCodeBtn'),
   copyBtn: $('copyBtn'),
+  codeNote: $('codeNote'),
+  loadCodeInput: $('loadCodeInput'),
+  loadBtn: $('loadBtn'),
+  loadInfo: $('loadInfo'),
   withSolutions: $('withSolutions'),
   generateBtn: $('generateBtn'),
   printBtn: $('printBtn'),
@@ -56,7 +62,13 @@ const LABEL_TO_ID = Object.fromEntries(
 const state = {
   level: 'medium', // gewünschte Schwierigkeitsstufe (Zielband)
   count: 8,
-  seed: randomSeed(),
+  // Seed für die nächste Erzeugung. Er kommt aus einem Link oder einem
+  // geladenen Heft-Code; null bedeutet: beim Erzeugen neu würfeln.
+  seed: null,
+  // Daten des zuletzt erzeugten (angezeigten) Hefts. Daraus entsteht der
+  // Heft-Code, und damit bleibt der Code auch nach Einstellungsänderungen
+  // eindeutig dem sichtbaren Heft zugeordnet.
+  booklet: null,
   withSolutions: true,
   format: null, // Raster des Hefts (nach dem ersten Rätsel eingefroren)
   islands: null, // ausgehandelte Inselzahl (null = noch nicht bestimmt)
@@ -73,8 +85,8 @@ const state = {
  * Sie ergibt sich aus der Schwierigkeitsstufe: die Kalibrierung kennt je
  * Inselzahl den tatsächlich erreichbaren Schwierigkeitsbereich.
  */
-function islandCount() {
-  const max = maxIslandsFor(state.level, CALIBRATION) || 40;
+function islandCount(level = state.level) {
+  const max = maxIslandsFor(level, CALIBRATION) || 40;
   return Math.max(MIN_ISLANDS, Math.min(max, MAX_ISLANDS));
 }
 
@@ -82,11 +94,11 @@ function islandCount() {
  * Startwert für die Inselzahl: die stufentypische Dichte auf einer
  * A5-Seite. Dieser Wert trifft das Band erfahrungsgemäss zuverlässig.
  */
-function densityIslands() {
+function densityIslands(level = state.level) {
   const cap = Math.floor(
-    (MAX_COLS * MAX_COLS) / (CELLS_PER_ISLAND[state.level] || 10),
+    (MAX_COLS * MAX_COLS) / (CELLS_PER_ISLAND[level] || 10),
   );
-  return Math.max(MIN_ISLANDS, Math.min(islandCount(), cap));
+  return Math.max(MIN_ISLANDS, Math.min(islandCount(level), cap));
 }
 
 /**
@@ -104,8 +116,8 @@ function densityIslands() {
  *
  * @returns {number} Inselzahl je Rätsel
  */
-function negotiateIslands() {
-  const band = LEVEL_BANDS[state.level];
+function negotiateIslands(level) {
+  const band = LEVEL_BANDS[level];
   // 20 % des Bandes bleiben als Puffer zum oberen Rand.
   const limit = band[1] - 0.2 * (band[1] - band[0]);
 
@@ -114,12 +126,12 @@ function negotiateIslands() {
       .map(
         (probe) =>
           generatePuzzle({
-            difficulty: state.level,
+            difficulty: level,
             seed: `${state.seed}-probe-${probe}`,
             islands,
             format: BOOKLET_FORMAT,
             keep: 1,
-            target: state.level,
+            target: level,
             maxGridFactor: (MAX_COLS * MAX_COLS) / Math.max(1, islands),
           }).difficultyScore,
       )
@@ -131,7 +143,7 @@ function negotiateIslands() {
     return score >= band[0] && score <= limit;
   };
 
-  let islands = densityIslands();
+  let islands = densityIslands(level);
 
   // Zu hart für die Seite: so weit senken, bis es passt.
   for (let round = 0; round < 6; round++) {
@@ -142,7 +154,7 @@ function negotiateIslands() {
   }
 
   // Nach oben tasten: so viele Inseln wie möglich.
-  const max = islandCount();
+  const max = islandCount(level);
   for (let round = 0; round < 4; round++) {
     const next = Math.min(max, Math.round(islands * 1.1));
     if (next === islands) break;
@@ -164,19 +176,19 @@ function negotiateIslands() {
  * Das Raster des ersten Rätsels gilt danach für das ganze Heft: so
  * behalten alle Knoten exakt dieselbe Grösse.
  */
-function makePuzzle(index) {
+function makePuzzle(index, level) {
   const seed = `${state.seed}-${index + 1}`;
   // Die Inselzahl wird einmal für das ganze Heft ausgehandelt.
-  if (state.islands == null) state.islands = negotiateIslands();
+  if (state.islands == null) state.islands = negotiateIslands(level);
   const islands = state.islands;
   const format = state.format ?? BOOKLET_FORMAT;
   const options = {
-    difficulty: state.level,
+    difficulty: level,
     seed,
     islands,
     format,
     keep: 1,
-    target: state.level,
+    target: level,
     // Das Raster darf nicht so weit werden, dass die Seite unlesbar wird.
     maxGridFactor: (MAX_COLS * MAX_COLS) / Math.max(1, islands),
     // Ab dem zweiten Rätsel steht das Raster fest – so bleiben alle Knoten
@@ -263,7 +275,8 @@ function miniPuzzle(puzzle, index, { solution = false } = {}) {
   svg.style.height = `${heightMm.toFixed(2)}mm`;
   board.appendChild(svg);
 
-  // Unter dem Rätsel stehen Nummer, gemessene Schwierigkeit und Seed.
+  // Unter dem Rätsel stehen Nummer und gemessene Schwierigkeit. Der
+  // Heft-Code steht einmal im Bedienfeld – nicht unter jedem Rätsel.
   // Bewusst keine Kopfzeile: dort stünde eine Seitenzahl, die irritiert.
   const foot = document.createElement('footer');
   foot.className = 'mini__foot';
@@ -273,10 +286,7 @@ function miniPuzzle(puzzle, index, { solution = false } = {}) {
   label.textContent = solution
     ? `${index + 1} · Lösung`
     : `${index + 1} · ${puzzle.difficultyText} (${puzzle.difficultyScore.toFixed(2)})`;
-  const seed = document.createElement('span');
-  seed.className = 'mini__seed';
-  seed.textContent = puzzle.seed;
-  foot.append(label, seed);
+  foot.append(label);
 
   article.append(board, foot);
   return article;
@@ -385,13 +395,14 @@ function buildSheetElement(sheet, side) {
  * Lösungen. Jede Seite kennt ihre Nummer und den Startindex der Rätsel.
  */
 function bookletPages(pages) {
+  const withSolutions = state.booklet?.withSolutions ?? state.withSolutions;
   const out = [];
   let puzzleIndex = 0;
   for (const page of pages) {
     out.push({ no: out.length + 1, puzzles: page, solution: false, firstIndex: puzzleIndex });
     puzzleIndex += page.length;
   }
-  if (state.withSolutions) {
+  if (withSolutions) {
     puzzleIndex = 0;
     for (const page of pages) {
       out.push({ no: out.length + 1, puzzles: page, solution: true, firstIndex: puzzleIndex });
@@ -399,6 +410,55 @@ function bookletPages(pages) {
     }
   }
   return out;
+}
+
+/** Daten, die der aktuell angezeigte bzw. als Nächstes geladene Code beschreibt. */
+function pendingBooklet() {
+  if (state.seed != null) {
+    return {
+      seed: state.seed,
+      level: state.level,
+      count: state.count,
+      withSolutions: state.withSolutions,
+    };
+  }
+  return state.booklet;
+}
+
+/** Baut einen Code und fängt ungültige Altdaten ab. */
+function codeFor(booklet) {
+  if (!booklet) return '';
+  try {
+    return makeBookletCode(booklet);
+  } catch {
+    return '';
+  }
+}
+
+function currentCode() {
+  return codeFor(pendingBooklet());
+}
+
+/**
+ * Zeigt den Code des angezeigten Hefts (oder des als Nächstes geladenen
+ * Hefts) an und schaltet die Kopierknöpfe passend.
+ */
+function updateCodeDisplay() {
+  const code = currentCode();
+  ui.codeInput.value = code;
+  const hasCode = Boolean(code);
+  ui.copyCodeBtn.disabled = !hasCode;
+  ui.copyBtn.disabled = !hasCode;
+
+  if (state.seed != null) {
+    ui.codeNote.textContent =
+      'Aus Link oder Code übernommen – „Heft erzeugen“ lädt dieses Heft.';
+  } else if (state.booklet) {
+    ui.codeNote.textContent =
+      'Gehört zum angezeigten Heft. Mit Code oder Link lässt es sich später wiederherstellen.';
+  } else {
+    ui.codeNote.textContent = 'Wird beim Erzeugen automatisch vergeben.';
+  }
 }
 
 function render() {
@@ -424,15 +484,20 @@ function render() {
     puzzles.length > 0
       ? puzzles.reduce((sum, p) => sum + (p.difficultyScore ?? 0), 0) / puzzles.length
       : 0;
-  const target = DIFFICULTIES[state.level]?.label ?? state.level;
-  const band = LEVEL_BANDS[state.level] ?? [0, 1];
+  // Für die Zusammenfassung zählt das angezeigte Heft – nicht eine
+  // eventuell schon geänderte Einstellung.
+  const shown = state.booklet;
+  const shownLevel = shown?.level ?? state.level;
+  const withSolutions = shown?.withSolutions ?? state.withSolutions;
+  const target = DIFFICULTIES[shownLevel]?.label ?? shownLevel;
+  const band = LEVEL_BANDS[shownLevel] ?? [0, 1];
   const imBand = puzzles.filter(
     (p) => p.difficultyScore >= band[0] && p.difficultyScore <= band[1],
   ).length;
 
   // Ist das Ziel mit dieser Inselzahl überhaupt erreichbar?
   // Entscheidend ist, ob sich die Bänder überschneiden.
-  const count = state.islands ?? islandCount();
+  const count = state.islands ?? islandCount(shownLevel);
   const range = achievableRange(CALIBRATION.buckets[bucketFor(count)]);
   const erreichbar = band[0] <= range[1] && band[1] >= range[0];
   const hinweis = erreichbar
@@ -445,11 +510,13 @@ function render() {
     `${puzzles[0]?.islands.length ?? count} Inseln`,
     `Ziel „${target}"`,
     `gemessen Ø ${avgDifficulty.toFixed(2)} (${imBand}/${puzzles.length} im Zielband)`,
-    `${pages.length} Rätselseiten` + (state.withSolutions ? ` + ${pages.length} Lösungsseiten` : ''),
+    `${pages.length} Rätselseiten` + (withSolutions ? ` + ${pages.length} Lösungsseiten` : ''),
   ];
   if (blank) teile.push(`${blank} leere Seiten`);
   teile.push(`${pageCount} Seiten A5`, `${sheets.length} A4-Bogen beidseitig`);
-  teile.push(`Seed ${state.seed}`);
+
+  const code = codeFor(state.booklet);
+  if (code) teile.push(`Code ${code}`);
 
   ui.info.textContent = teile.join(' · ') + hinweis;
 
@@ -484,13 +551,26 @@ function syncGroups() {
   }
 }
 
+/** Sperrt die Einstellungen, solange ein Heft erzeugt wird. */
+function setSettingsDisabled(disabled) {
+  for (const button of ui.difficulty.querySelectorAll('button')) button.disabled = disabled;
+  for (const button of ui.count.querySelectorAll('button')) button.disabled = disabled;
+  ui.countInput.disabled = disabled;
+  ui.withSolutions.disabled = disabled;
+}
+
 function updateHash() {
-  const params = new URLSearchParams({
-    seed: state.seed,
-    d: state.level,
-    n: String(state.count),
-  });
-  if (state.withSolutions) params.set('sol', '1');
+  const data = pendingBooklet() ?? {
+    seed: null,
+    level: state.level,
+    count: state.count,
+    withSolutions: state.withSolutions,
+  };
+  const params = new URLSearchParams();
+  if (data.seed) params.set('seed', data.seed);
+  params.set('d', data.level);
+  params.set('n', String(data.count));
+  params.set('sol', data.withSolutions ? '1' : '0');
   const hash = `#${params.toString()}`;
   if (window.location.hash !== hash) history.replaceState(null, '', hash);
 }
@@ -507,7 +587,7 @@ function readHash() {
   else if (LABEL_TO_ID[d]) out.level = LABEL_TO_ID[d];
 
   if (Number.isFinite(n) && n >= 1 && n <= MAX_PUZZLES) out.count = Math.round(n);
-  if (params.get('sol') === '1') out.withSolutions = true;
+  if (params.has('sol')) out.withSolutions = params.get('sol') === '1';
   return out;
 }
 
@@ -517,8 +597,49 @@ async function copyLink() {
     await navigator.clipboard.writeText(window.location.href);
     ui.info.textContent = 'Link in die Zwischenablage kopiert.';
   } catch {
-    ui.seedInput.select();
+    ui.codeInput.select();
   }
+}
+
+async function copyCode() {
+  const code = currentCode();
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+    ui.info.textContent = `Heft-Code ${code} kopiert.`;
+  } catch {
+    ui.codeInput.select();
+  }
+}
+
+/**
+ * Lädt ein Heft aus einem Code. Der Code legt Seed, Schwierigkeit, Anzahl
+ * und Lösungsseiten fest; danach wird das Heft direkt erzeugt.
+ */
+function loadCode() {
+  if (ui.generateBtn.disabled) return;
+  const parsed = parseBookletCode(ui.loadCodeInput.value);
+  if (!parsed) {
+    ui.loadInfo.textContent =
+      'Ungültiger Heft-Code. Bitte den Code vollständig eingeben, z. B. K4F9-2QXZ.M08S.';
+    ui.loadInfo.dataset.tone = 'bad';
+    return;
+  }
+
+  state.seed = parsed.seed;
+  state.level = parsed.level;
+  state.count = parsed.count;
+  state.withSolutions = parsed.withSolutions;
+
+  ui.countInput.value = String(state.count);
+  ui.withSolutions.checked = state.withSolutions;
+  syncGroups();
+  updateCodeDisplay();
+  updateHash();
+
+  ui.loadInfo.textContent = 'Heft-Code erkannt – das Heft wird erzeugt.';
+  ui.loadInfo.dataset.tone = 'ok';
+  generate();
 }
 
 /**
@@ -526,17 +647,33 @@ async function copyLink() {
  * damit die Oberfläche bei 100 Rätseln nicht einfriert.
  */
 function generate() {
+  if (ui.generateBtn.disabled) return;
+
+  // Ein vorhandener Seed (aus Link oder Code) wird übernommen. Sonst
+  // entsteht hier der neue Seed für dieses Heft – der Code wird also erst
+  // beim Erzeugen vergeben, nicht vorher verlangt.
+  const seed = state.seed ?? randomSeed();
+  state.seed = seed;
+  // Die Einstellungen für dieses Heft werden beim Start festgehalten. So
+  // beschreibt der erzeugte Code auch dann exakt das Heft, wenn während
+  // der Erzeugung ein Schalter betätigt wird.
+  const level = state.level;
   const total = state.count;
+  state.format = null;
+  state.islands = null;
+
   const puzzles = [];
   let index = 0;
 
   ui.generateBtn.disabled = true;
+  ui.loadBtn.disabled = true;
+  setSettingsDisabled(true);
   ui.generateBtn.textContent = 'Wird erzeugt …';
 
   const step = () => {
     const end = Math.min(index + 8, total);
     try {
-      for (; index < end; index++) puzzles.push(makePuzzle(index));
+      for (; index < end; index++) puzzles.push(makePuzzle(index, level));
     } catch (error) {
       finish();
       ui.info.textContent = `Fehler bei der Erzeugung: ${error.message}`;
@@ -548,13 +685,26 @@ function generate() {
       return;
     }
     state.puzzles = puzzles;
+    state.booklet = {
+      seed,
+      level,
+      count: total,
+      withSolutions: state.withSolutions,
+    };
+    // Ab jetzt ist der Seed Teil des angezeigten Hefts; der nächste Klick
+    // auf «Heft erzeugen» würfelt wieder einen neuen Code.
+    state.seed = null;
     updateHash();
+    updateCodeDisplay();
+    ui.printBtn.disabled = false;
     render();
     finish();
   };
 
   const finish = () => {
     ui.generateBtn.disabled = false;
+    ui.loadBtn.disabled = false;
+    setSettingsDisabled(false);
     ui.generateBtn.innerHTML =
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg> Heft erzeugen';
   };
@@ -588,16 +738,17 @@ function buildDifficultyButtons() {
 
 /** Merkt vor, dass die aktuelle Vorschau zu den Einstellungen veraltet ist. */
 function markDirty() {
-  // Die Adresse zeigt immer die aktuellen Einstellungen – so lässt sich das
-  // Heft per Link weitergeben, auch bevor es erzeugt wurde.
+  // Solange noch kein Heft erzeugt wurde, zeigt die Adresse die gewählten
+  // Einstellungen. Nach dem Erzeugen gehört sie zum angezeigten Heft.
   updateHash();
+  updateCodeDisplay();
   // Bei geänderten Einstellungen muss das Raster neu bestimmt werden.
   state.format = null;
   // Die Inselzahl wird beim Erzeugen neu ausgehandelt.
   state.islands = null;
   if (!state.puzzles.length) return;
   ui.info.textContent =
-    'Einstellungen geändert – bitte "Heft erzeugen" klicken, um sie anzuwenden.';
+    'Einstellungen geändert – bitte "Heft erzeugen" klicken. Dabei entsteht ein neuer Heft-Code.';
   ui.info.dataset.dirty = 'true';
 }
 
@@ -621,19 +772,24 @@ function setupEvents() {
 
   ui.withSolutions.addEventListener('change', () => {
     state.withSolutions = ui.withSolutions.checked;
+    // Die Lösungsseiten gehören zum angezeigten Heft: Der Code ändert sich
+    // dadurch, der Seed bleibt gleich.
+    if (state.booklet) state.booklet.withSolutions = state.withSolutions;
     if (state.puzzles.length) render();
+    updateCodeDisplay();
     updateHash();
   });
 
-  ui.seedInput.addEventListener('change', () => {
-    const value = ui.seedInput.value.trim();
-    if (!value) return;
-    state.seed = value;
-    markDirty();
-  });
-
   ui.generateBtn.addEventListener('click', generate);
+  ui.copyCodeBtn.addEventListener('click', copyCode);
   ui.copyBtn.addEventListener('click', copyLink);
+  ui.loadBtn.addEventListener('click', loadCode);
+  ui.loadCodeInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      loadCode();
+    }
+  });
   ui.printBtn.addEventListener('click', () => window.print());
   window.addEventListener('resize', fitPreview);
 
@@ -642,8 +798,8 @@ function setupEvents() {
     if (target instanceof HTMLInputElement) return;
     if (event.key.toLowerCase() === 'n' && !event.metaKey && !event.ctrlKey) {
       event.preventDefault();
-      state.seed = randomSeed();
-      ui.seedInput.value = state.seed;
+      // «N» heißt: ein neues Heft, nicht das angezeigte erneut erzeugen.
+      state.seed = null;
       generate();
     }
   });
@@ -654,16 +810,21 @@ function boot() {
 
   const fromHash = readHash();
   Object.assign(state, fromHash);
-  ui.seedInput.value = state.seed;
   ui.countInput.value = String(state.count);
   ui.withSolutions.checked = state.withSolutions;
 
   setupEvents();
   syncGroups();
+  updateCodeDisplay();
+  updateHash();
 
   // Es wird bewusst nichts erzeugt: das Heft entsteht erst auf Klick
   // auf "Heft erzeugen".
   showEmptyState();
+  if (fromHash.seed) {
+    ui.info.textContent =
+      'Heft-Code aus dem Link übernommen – bitte „Heft erzeugen" klicken.';
+  }
 }
 
 /** Platzhalter, solange noch kein Heft erzeugt wurde. */
@@ -673,6 +834,7 @@ function showEmptyState() {
   box.innerHTML =
     '<p class="empty__title">Noch kein Heft erzeugt</p>' +
     '<p class="empty__text">Einstellungen wählen und auf <strong>„Heft erzeugen"</strong> klicken. ' +
+    'Das Heft erhält automatisch einen Code, mit dem es sich später wiederherstellen lässt. ' +
     'Je nach Umfang dauert die Erzeugung einige Minuten.</p>';
   ui.sheets.replaceChildren(box);
   ui.info.textContent = 'Bereit – bitte „Heft erzeugen" klicken.';

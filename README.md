@@ -20,6 +20,7 @@ Abhängigkeiten.
 | **Spielkomfort** | Undo/Redo, Hinweis, Lösung prüfen, Lösung einblenden, Timer |
 | **Drucken** | Einzelnes Rätsel als sauberes A4-Blatt ausgeben |
 | **Rätselheft** | Bis zu 100 Rätsel im DIN-A5-Format (ein Rätsel pro Seite), auf A4-Bögen zum Falten |
+| **Heft-Code** | Beim Erzeugen entsteht automatisch ein Code, mit dem sich dasselbe Heft wieder laden lässt |
 | **Ohne Build** | Reines JavaScript (ES-Module) – läuft direkt aus dem Repository |
 | **Ohne Dependencies** | Kein npm-Paket, kein Framework, kein Bundler |
 | **Hell/Dunkel** | Folgt der Systemeinstellung, manuell umschaltbar |
@@ -64,7 +65,8 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
 * **Erzeugung auf Knopfdruck**: Beim Aufruf der Seite wird **nichts**
   erzeugt. Erst der Knopf *„Heft erzeugen"* startet die Erzeugung; alle
   anderen Schalter verändern nur die Einstellungen. Die Vorschau meldet,
-  wenn die Einstellungen veraltet sind.
+  wenn die Einstellungen veraltet sind. Vor dem Erzeugen muss **kein Code
+  eingegeben** werden.
 * **Ein Rätsel pro Seite**: Jede Heftseite ist DIN A5 gross – das Rätsel
   füllt sie fast aus und bleibt dadurch auch im Druck gut lesbar.
 * **Inseln pro Rätsel** ergeben sich automatisch aus der Schwierigkeit –
@@ -80,10 +82,16 @@ Die Seite [`puzzlebook.html`](puzzlebook.html) erzeugt ein ganzes Heft:
 * **Einheitliche Optik**: Die Rätsel werden in echten Millimetern gezeichnet.
   Inseln, Zahlen und Brücken sind dadurch auf **jeder Seite gleich gross** –
   unabhängig von der Grösse des Rasters.
-* **Seed**: gleicher Seed ⇒ gleiches Heft, per Link teilbar.
-* Unter jedem Rätsel stehen **Nummer, Schwierigkeitsgrad und Seed**. Die
-  Nummer läuft durchlaufend über das ganze Heft (1, 2, 3 …) und passt zur
-  gleich nummerierten Lösungsseite.
+* **Heft-Code**: Beim Erzeugen vergibt das Heft automatisch einen Code,
+  z. B. `K4F9-2QXZ.M08S`. Er enthält Seed, Schwierigkeit, Anzahl und
+  Lösungsseiten. Wer ihn unter *Vorhandenes Heft laden* eingibt, erhält
+  exakt dasselbe Heft. Der Link tut dasselbe.
+* Unter jedem Rätsel stehen **Nummer und gemessener Schwierigkeitsgrad**.
+  Die Nummer läuft durchlaufend über das ganze Heft (1, 2, 3 …) und passt
+  zur gleich nummerierten Lösungsseite.
+
+Alte Links mit `#seed=…&d=…&n=…` funktionieren weiterhin; der Code wird
+beim Erzeugen daraus neu gebildet.
 
 ### Vom A4-Bogen zum A5-Heft
 
@@ -236,13 +244,14 @@ Getestet werden:
   Kennzahl), Neues Rätsel, Zurück/Vor, Hinweis, Prüfen, Lösung, Drucken,
   Link, Farbschema, Seed-Eingabe und die Tastenkürzel.
 * **Heft-Oberfläche** – alle Knöpfe der Heftseite: Stufen, Anzahl, Heft
-  erzeugen (mit A4-Bögen und Faltmarke), Drucken, Link, Lösungen
-  ein-/ausblenden – und dass beim Start nichts erzeugt wird.
+  erzeugen (mit A4-Bögen und Faltmarke), Drucken, Code/Link kopieren,
+  Heft aus Code laden, Lösungen ein-/ausblenden – und dass beim Start
+  nichts erzeugt wird.
 * **Eindeutige IDs** – kein Element teilt sich eine `id` mit einem anderen,
   und jeder Knopf hat einen Klick-Handler.
 * **Zufallsgenerator** – Determinismus, Wertebereiche, Verteilungen.
 
-Aktueller Stand: **184 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 ms.
+Aktueller Stand: **196 Tests, alle grün.** Erzeugung eines Rätsels: ~10–40 ms.
 
 ### Schwierigkeitsgrade
 
@@ -591,6 +600,7 @@ hashi/
 │   ├── rng.js                 # deterministischer Zufallsgenerator (xmur3 + mulberry32)
 │   ├── solver.js              # Constraint-Solver
 │   ├── booklet.js             # Logik der Heft-Erzeugung
+│   ├── booklet-code.js        # Heft-Code: Seed + Einstellungen kodieren
 │   └── data/
 │       └── difficulty.js      # Referenzbereiche (npm run calibrate)
 ├── scripts/
@@ -612,6 +622,10 @@ hashi/
 **Eigene Rätsel teilen?** Das Feld *Seed & Teilen* zeigt den Seed. Wer den
 Seed und die Schwierigkeit kennt, kann das exakt gleiche Rätsel laden –
 oder den Link aus dem Browser kopieren (`#seed=…&d=…`).
+
+Für das Rätselheft steht der automatisch vergebene **Heft-Code** im
+Bedienfeld. Er enthält Seed, Schwierigkeit, Anzahl und Lösungsseiten; über
+*Vorhandenes Heft laden* lässt sich damit dasselbe Heft wieder erzeugen.
 
 **Technik:** Reines JavaScript mit ES-Modulen, Canvas-Frontend, keine
 Laufzeit-Abhängigkeiten. `npm test` nutzt den in Node eingebauten

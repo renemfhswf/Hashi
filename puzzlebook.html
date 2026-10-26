@@ -62,14 +62,6 @@
             </div>
           </div>
 
-          <div class="field">
-            <span class="field__label">Seed</span>
-            <div class="seed-row">
-              <input class="input" id="seedInput" type="text" spellcheck="false" autocomplete="off" aria-label="Seed" />
-              <button class="btn btn--small" id="copyBtn" type="button" title="Link kopieren">Link</button>
-            </div>
-          </div>
-
           <label class="checkbox">
             <input type="checkbox" id="withSolutions" />
             <span>Lösungen als letzte Seiten anhängen</span>
@@ -80,11 +72,30 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
               Heft erzeugen
             </button>
-            <button class="btn" id="printBtn" type="button">
+            <button class="btn" id="printBtn" type="button" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V4h10v5" /><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v6H7z" /></svg>
               Drucken
             </button>
           </div>
+
+          <div class="field">
+            <span class="field__label">Heft-Code</span>
+            <div class="seed-row">
+              <input class="input" id="codeInput" type="text" readonly placeholder="Wird beim Erzeugen erzeugt" aria-label="Heft-Code" />
+              <button class="btn btn--small" id="copyCodeBtn" type="button" title="Heft-Code kopieren" disabled>Code</button>
+              <button class="btn btn--small" id="copyBtn" type="button" title="Link zum Heft kopieren" disabled>Link</button>
+            </div>
+            <p class="field__note" id="codeNote">Wird beim Erzeugen automatisch vergeben.</p>
+          </div>
+
+          <details class="load-code">
+            <summary>Vorhandenes Heft laden</summary>
+            <div class="seed-row">
+              <input class="input" id="loadCodeInput" type="text" spellcheck="false" autocomplete="off" placeholder="z. B. K4F9-2QXZ.M08S" aria-label="Heft-Code zum Laden" />
+              <button class="btn btn--small" id="loadBtn" type="button">Laden</button>
+            </div>
+            <p class="field__note" id="loadInfo">Code eingeben und „Laden“ klicken – das Heft wird mit denselben Einstellungen erzeugt.</p>
+          </details>
 
           <p class="field__note" id="bookletInfo"></p>
 
